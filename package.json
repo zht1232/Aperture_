@@ -1,0 +1,24 @@
+{
+  "name": "mc-mcp-renderer",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Standalone high-performance Minecraft Java world renderer and camera editor with MCP",
+  "scripts": {
+    "start": "node src/server.js",
+    "mcp": "node src/mcp-server.js",
+    "acceptance": "node acceptance/run-acceptance.js",
+    "prepare-assets": "python tools/build_assets.py",
+    "check": "node --check src/nbt.js && node --check src/world.js && node --check src/models.js && node --check src/mesher.js && node --check src/service.js && node --check src/mcp-server.js && node --check src/server.js && node --check public/app.js && node --check acceptance/run-acceptance.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.20.0",
+    "playwright-core": "^1.55.0",
+    "pngjs": "^7.0.0",
+    "three": "^0.180.0",
+    "zod": "^3.25.0"
+  }
+}

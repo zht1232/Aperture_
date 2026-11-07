@@ -1,0 +1,29 @@
+{
+  "stats": {
+    "minecraft:dropped": {
+      "minecraft:azalea": 3
+    },
+    "minecraft:custom": {
+      "minecraft:time_since_rest": 34751,
+      "minecraft:walk_one_cm": 34429,
+      "minecraft:leave_game": 20,
+      "minecraft:play_time": 34751,
+      "minecraft:jump": 161,
+      "minecraft:time_since_death": 34751,
+      "minecraft:drop": 3,
+      "minecraft:sprint_one_cm": 22692,
+      "minecraft:total_world_time": 142764,
+      "minecraft:fly_one_cm": 1202716,
+      "minecraft:walk_on_water_one_cm": 1461,
+      "minecraft:crouch_one_cm": 570,
+      "minecraft:sneak_time": 1108
+    },
+    "minecraft:picked_up": {
+      "minecraft:azalea": 3,
+      "minecraft:stick": 2,
+      "minecraft:dark_oak_sapling": 1,
+      "minecraft:oak_sapling": 2
+    }
+  },
+  "DataVersion": 5023
+}

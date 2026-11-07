@@ -1,0 +1,1070 @@
+{
+  "startedAt": "2026-11-07T10:22:49.809Z",
+  "toolCalls": [
+    {
+      "step": 1,
+      "name": "mc_camera_state",
+      "args": {},
+      "isError": true,
+      "ms": 3,
+      "code": "NOT_LOADED"
+    },
+    {
+      "step": 2,
+      "name": "mc_load_world",
+      "args": {
+        "path": "./testdata/definitely-not-here"
+      },
+      "isError": true,
+      "ms": 1,
+      "code": "WORLD_NOT_FOUND"
+    },
+    {
+      "step": 3,
+      "name": "mc_load_world",
+      "args": {
+        "path": "./testdata/gothic-cathedral",
+        "radius": 7,
+        "width": 1280,
+        "height": 720,
+        "shader_preset": "cinematic",
+        "time_of_day": 10.5,
+        "camera": {
+          "position": [
+            0,
+            -54,
+            90
+          ],
+          "target": [
+            0,
+            -54,
+            20
+          ],
+          "fov": 72
+        }
+      },
+      "isError": false,
+      "ms": 6120,
+      "code": null
+    },
+    {
+      "step": 4,
+      "name": "mc_world_info",
+      "args": {},
+      "isError": false,
+      "ms": 2,
+      "code": null
+    },
+    {
+      "step": 5,
+      "name": "mc_get_block",
+      "args": {
+        "x": 0,
+        "y": -60,
+        "z": 0
+      },
+      "isError": false,
+      "ms": 1,
+      "code": null
+    },
+    {
+      "step": 6,
+      "name": "mc_find_blocks",
+      "args": {
+        "block": "minecraft:lantern",
+        "bbox": [
+          -32,
+          -64,
+          0,
+          32,
+          0,
+          120
+        ],
+        "limit": 20
+      },
+      "isError": false,
+      "ms": 41,
+      "code": null
+    },
+    {
+      "step": 7,
+      "name": "mc_camera_set",
+      "args": {
+        "position": [
+          0,
+          -54,
+          90
+        ],
+        "target": [
+          0,
+          -54,
+          20
+        ],
+        "fov": 72
+      },
+      "isError": false,
+      "ms": 7,
+      "code": null
+    },
+    {
+      "step": 8,
+      "name": "mc_screenshot",
+      "args": {
+        "width": 1280,
+        "height": 720,
+        "settle_frames": 3,
+        "filename": "acc-A1-nave.png"
+      },
+      "isError": false,
+      "ms": 107,
+      "code": null
+    },
+    {
+      "step": 9,
+      "name": "mc_screenshot",
+      "args": {
+        "width": 1280,
+        "height": 720,
+        "settle_frames": 3,
+        "filename": "acc-A2-nave-repeat.png"
+      },
+      "isError": false,
+      "ms": 94,
+      "code": null
+    },
+    {
+      "step": 10,
+      "name": "mc_camera_set",
+      "args": {
+        "position": [
+          0,
+          20,
+          170
+        ],
+        "target": [
+          0,
+          -25,
+          25
+        ],
+        "fov": 50
+      },
+      "isError": false,
+      "ms": 5,
+      "code": null
+    },
+    {
+      "step": 11,
+      "name": "mc_screenshot",
+      "args": {
+        "width": 1280,
+        "height": 720,
+        "settle_frames": 3,
+        "filename": "acc-B1-aerial.png"
+      },
+      "isError": false,
+      "ms": 123,
+      "code": null
+    },
+    {
+      "step": 12,
+      "name": "mc_camera_orbit",
+      "args": {
+        "target": [
+          0,
+          -48,
+          34
+        ],
+        "distance": 62,
+        "azimuth": 145,
+        "elevation": 20,
+        "fov": 55
+      },
+      "isError": false,
+      "ms": 6,
+      "code": null
+    },
+    {
+      "step": 13,
+      "name": "mc_screenshot",
+      "args": {
+        "width": 1280,
+        "height": 720,
+        "settle_frames": 3,
+        "filename": "acc-C1-orbit.png"
+      },
+      "isError": false,
+      "ms": 141,
+      "code": null
+    },
+    {
+      "step": 14,
+      "name": "mc_camera_path",
+      "args": {
+        "keyframes": [
+          {
+            "time": 0,
+            "position": [
+              0,
+              -54,
+              90
+            ],
+            "target": [
+              0,
+              -54,
+              20
+            ],
+            "fov": 72
+          },
+          {
+            "time": 3,
+            "position": [
+              38,
+              -38,
+              58
+            ],
+            "target": [
+              0,
+              -46,
+              26
+            ],
+            "fov": 62
+          },
+          {
+            "time": 6,
+            "position": [
+              74,
+              -10,
+              74
+            ],
+            "target": [
+              0,
+              -44,
+              30
+            ],
+            "fov": 58
+          }
+        ],
+        "duration": 6,
+        "loop": false,
+        "playing": false,
+        "seek": 0
+      },
+      "isError": false,
+      "ms": 6,
+      "code": null
+    },
+    {
+      "step": 15,
+      "name": "mc_screenshot",
+      "args": {
+        "width": 1280,
+        "height": 720,
+        "settle_frames": 3,
+        "filename": "acc-P0-path-start.png"
+      },
+      "isError": false,
+      "ms": 136,
+      "code": null
+    },
+    {
+      "step": 16,
+      "name": "mc_camera_path",
+      "args": {
+        "keyframes": [
+          {
+            "time": 0,
+            "position": [
+              0,
+              -54,
+              90
+            ],
+            "target": [
+              0,
+              -54,
+              20
+            ],
+            "fov": 72
+          },
+          {
+            "time": 3,
+            "position": [
+              38,
+              -38,
+              58
+            ],
+            "target": [
+              0,
+              -46,
+              26
+            ],
+            "fov": 62
+          },
+          {
+            "time": 6,
+            "position": [
+              74,
+              -10,
+              74
+            ],
+            "target": [
+              0,
+              -44,
+              30
+            ],
+            "fov": 58
+          }
+        ],
+        "duration": 6,
+        "loop": false,
+        "playing": false,
+        "seek": 3
+      },
+      "isError": false,
+      "ms": 4,
+      "code": null
+    },
+    {
+      "step": 17,
+      "name": "mc_screenshot",
+      "args": {
+        "width": 1280,
+        "height": 720,
+        "settle_frames": 3,
+        "filename": "acc-P3-path-mid.png"
+      },
+      "isError": false,
+      "ms": 154,
+      "code": null
+    },
+    {
+      "step": 18,
+      "name": "mc_shader_preset",
+      "args": {
+        "preset": "performance",
+        "time_of_day": 10.5
+      },
+      "isError": false,
+      "ms": 8,
+      "code": null
+    },
+    {
+      "step": 19,
+      "name": "mc_screenshot",
+      "args": {
+        "width": 1280,
+        "height": 720,
+        "settle_frames": 3,
+        "filename": "acc-S1-performance.png"
+      },
+      "isError": false,
+      "ms": 289,
+      "code": null
+    },
+    {
+      "step": 20,
+      "name": "mc_shader_preset",
+      "args": {
+        "preset": "cinematic",
+        "time_of_day": 10.5
+      },
+      "isError": false,
+      "ms": 7,
+      "code": null
+    },
+    {
+      "step": 21,
+      "name": "mc_screenshot",
+      "args": {
+        "width": 1280,
+        "height": 720,
+        "settle_frames": 3,
+        "filename": "acc-S2-cinematic.png"
+      },
+      "isError": false,
+      "ms": 173,
+      "code": null
+    },
+    {
+      "step": 22,
+      "name": "mc_shader_preset",
+      "args": {
+        "preset": "cinematic",
+        "time_of_day": 22
+      },
+      "isError": false,
+      "ms": 13,
+      "code": null
+    },
+    {
+      "step": 23,
+      "name": "mc_screenshot",
+      "args": {
+        "width": 1280,
+        "height": 720,
+        "settle_frames": 3,
+        "filename": "acc-S3-night.png"
+      },
+      "isError": false,
+      "ms": 105,
+      "code": null
+    },
+    {
+      "step": 24,
+      "name": "mc_render_stats",
+      "args": {},
+      "isError": false,
+      "ms": 4,
+      "code": null
+    },
+    {
+      "step": 25,
+      "name": "mc_benchmark",
+      "args": {
+        "frames": 90
+      },
+      "isError": false,
+      "ms": 52,
+      "code": null
+    },
+    {
+      "step": 26,
+      "name": "mc_reload_world",
+      "args": {
+        "radius": 6
+      },
+      "isError": false,
+      "ms": 5141,
+      "code": null
+    },
+    {
+      "step": 27,
+      "name": "mc_screenshot",
+      "args": {
+        "width": 1280,
+        "height": 720,
+        "settle_frames": 3,
+        "filename": "acc-R1-reload.png"
+      },
+      "isError": false,
+      "ms": 105,
+      "code": null
+    }
+  ],
+  "checks": [
+    {
+      "name": "MCP exposes all required tools",
+      "ok": true,
+      "details": {
+        "tools": [
+          "mc_load_world",
+          "mc_reload_world",
+          "mc_world_info",
+          "mc_get_block",
+          "mc_find_blocks",
+          "mc_camera_set",
+          "mc_camera_orbit",
+          "mc_camera_path",
+          "mc_camera_state",
+          "mc_shader_preset",
+          "mc_screenshot",
+          "mc_render_stats",
+          "mc_benchmark",
+          "mc_shutdown"
+        ]
+      }
+    },
+    {
+      "name": "unloaded renderer returns structured error",
+      "ok": true,
+      "details": {
+        "code": "NOT_LOADED",
+        "message": "No world loaded. Call mc_load_world first.",
+        "details": null,
+        "retryable": false,
+        "suggestion": "Call mc_load_world first; browser tools require a loaded world."
+      }
+    },
+    {
+      "name": "missing world returns structured error",
+      "ok": true,
+      "details": {
+        "code": "WORLD_NOT_FOUND",
+        "message": "World directory not found: C:\\Users\\Administrator\\Desktop\\mc-mcp-camera\\testdata\\definitely-not-here",
+        "details": {
+          "path": "C:\\Users\\Administrator\\Desktop\\mc-mcp-camera\\testdata\\definitely-not-here"
+        },
+        "retryable": false,
+        "suggestion": "Pass an absolute path to a Java world directory containing level.dat and a region folder."
+      }
+    },
+    {
+      "name": "MCP load_world succeeds",
+      "ok": true,
+      "details": {
+        "loadMs": 6117
+      }
+    },
+    {
+      "name": "real GPU renderer used",
+      "ok": true,
+      "details": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3080 Laptop GPU (0x000024DC) Direct3D11 vs_5_0 ps_5_0, D3D11)"
+    },
+    {
+      "name": "geometry generated",
+      "ok": true,
+      "details": {
+        "tris": 2268436,
+        "meshes": 44
+      }
+    },
+    {
+      "name": "world_info identifies save",
+      "ok": true,
+      "details": {
+        "name": "哥特大教堂 · Gothic Cathedral",
+        "dataVersion": 5023
+      }
+    },
+    {
+      "name": "world_info reports blocks/chunks",
+      "ok": true,
+      "details": {
+        "blocks": 374168,
+        "chunks": 225
+      }
+    },
+    {
+      "name": "block query returns real block",
+      "ok": true,
+      "details": {
+        "name": "minecraft:stone_bricks",
+        "properties": {},
+        "key": "minecraft:stone_bricks",
+        "light": {
+          "block": 0,
+          "sky": 0
+        },
+        "loaded": true
+      }
+    },
+    {
+      "name": "find_blocks returns lanterns",
+      "ok": true,
+      "details": {
+        "count": 20,
+        "first": {
+          "x": -14,
+          "y": -54,
+          "z": 21,
+          "name": "minecraft:lantern",
+          "properties": {},
+          "light": {
+            "block": 15,
+            "sky": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "camera_set returns matrices",
+      "ok": true,
+      "details": null
+    },
+    {
+      "name": "view matrix is not identity translation",
+      "ok": true,
+      "details": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        54,
+        -90,
+        1
+      ]
+    },
+    {
+      "name": "screenshot A1-nave returns inline image",
+      "ok": true,
+      "details": null
+    },
+    {
+      "name": "screenshot A2-nave-repeat returns inline image",
+      "ok": true,
+      "details": null
+    },
+    {
+      "name": "same camera screenshot is stable",
+      "ok": true,
+      "details": {
+        "sameSize": true,
+        "meanAbs": 0,
+        "changedFraction": 0,
+        "width": 1280,
+        "height": 720
+      }
+    },
+    {
+      "name": "camera B moved",
+      "ok": true,
+      "details": null
+    },
+    {
+      "name": "screenshot B1-aerial returns inline image",
+      "ok": true,
+      "details": null
+    },
+    {
+      "name": "camera change visibly changes frame",
+      "ok": true,
+      "details": {
+        "sameSize": true,
+        "meanAbs": 111.31562029803452,
+        "changedFraction": 0.9989333767361112,
+        "width": 1280,
+        "height": 720
+      }
+    },
+    {
+      "name": "orbit camera computes position",
+      "ok": true,
+      "details": {
+        "position": [
+          33.41710377113688,
+          -26.79475111380854,
+          -13.724570141843557
+        ]
+      }
+    },
+    {
+      "name": "screenshot C1-orbit returns inline image",
+      "ok": true,
+      "details": null
+    },
+    {
+      "name": "orbit frame differs from free camera",
+      "ok": true,
+      "details": {
+        "sameSize": true,
+        "meanAbs": 81.49864474826387,
+        "changedFraction": 0.9953938802083333,
+        "width": 1280,
+        "height": 720
+      }
+    },
+    {
+      "name": "path installed",
+      "ok": true,
+      "details": null
+    },
+    {
+      "name": "screenshot P0-path-start returns inline image",
+      "ok": true,
+      "details": null
+    },
+    {
+      "name": "screenshot P3-path-mid returns inline image",
+      "ok": true,
+      "details": null
+    },
+    {
+      "name": "path seek samples different camera",
+      "ok": true,
+      "details": {
+        "sameSize": true,
+        "meanAbs": 63.276935402194695,
+        "changedFraction": 0.9867860243055555,
+        "width": 1280,
+        "height": 720
+      }
+    },
+    {
+      "name": "path metadata position differs",
+      "ok": true,
+      "details": {
+        "position": [
+          38,
+          -38,
+          58
+        ]
+      }
+    },
+    {
+      "name": "shader preset switches",
+      "ok": true,
+      "details": null
+    },
+    {
+      "name": "screenshot S1-performance returns inline image",
+      "ok": true,
+      "details": null
+    },
+    {
+      "name": "cinematic preset restores post pipeline",
+      "ok": true,
+      "details": null
+    },
+    {
+      "name": "screenshot S2-cinematic returns inline image",
+      "ok": true,
+      "details": null
+    },
+    {
+      "name": "shader pipeline changes pixels",
+      "ok": true,
+      "details": {
+        "sameSize": true,
+        "meanAbs": 22.823793041076204,
+        "changedFraction": 0.5833582899305556,
+        "width": 1280,
+        "height": 720
+      }
+    },
+    {
+      "name": "screenshot S3-night returns inline image",
+      "ok": true,
+      "details": null
+    },
+    {
+      "name": "time-of-day changes lighting",
+      "ok": true,
+      "details": {
+        "sameSize": true,
+        "meanAbs": 55.83103696474481,
+        "changedFraction": 0.9875455729166667,
+        "width": 1280,
+        "height": 720
+      }
+    },
+    {
+      "name": "render stats include triangle/draw counts",
+      "ok": true,
+      "details": {
+        "tris": 2231724,
+        "calls": 61,
+        "fps": 56,
+        "gpu": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3080 Laptop GPU (0x000024DC) Direct3D11 vs_5_0 ps_5_0, D3D11)"
+      }
+    },
+    {
+      "name": "benchmark measured >60 fps at 1280x720",
+      "ok": true,
+      "details": {
+        "fps": 1943.844,
+        "msPerFrame": 0.514,
+        "tris": 2231724
+      }
+    },
+    {
+      "name": "reload_world rebuilds from disk",
+      "ok": true,
+      "details": {
+        "loadMs": 5139,
+        "chunks": 169
+      }
+    },
+    {
+      "name": "screenshot R1-reload returns inline image",
+      "ok": true,
+      "details": null
+    },
+    {
+      "name": "screenshot after reload works",
+      "ok": true,
+      "details": null
+    }
+  ],
+  "screenshots": [
+    {
+      "alias": "A1-nave",
+      "file": "acceptance\\out\\A1-nave.png",
+      "sha256": "a0d6104f6aac7c5a7f1a6864bda1a5a3b0d7b612288b5bc345ec94861fe1af91",
+      "width": 1280,
+      "height": 720,
+      "camera": [
+        0,
+        -54,
+        90
+      ],
+      "target": [
+        0,
+        -54,
+        20
+      ],
+      "shader": "cinematic",
+      "timeOfDay": 10.5
+    },
+    {
+      "alias": "A2-nave-repeat",
+      "file": "acceptance\\out\\A2-nave-repeat.png",
+      "sha256": "a0d6104f6aac7c5a7f1a6864bda1a5a3b0d7b612288b5bc345ec94861fe1af91",
+      "width": 1280,
+      "height": 720,
+      "camera": [
+        0,
+        -54,
+        90
+      ],
+      "target": [
+        0,
+        -54,
+        20
+      ],
+      "shader": "cinematic",
+      "timeOfDay": 10.5
+    },
+    {
+      "alias": "B1-aerial",
+      "file": "acceptance\\out\\B1-aerial.png",
+      "sha256": "b04c5c5576bf732fb00efd132415816bb513592e9aa6b694ca6881d4f00892ce",
+      "width": 1280,
+      "height": 720,
+      "camera": [
+        0,
+        20,
+        170
+      ],
+      "target": [
+        0,
+        -25,
+        25
+      ],
+      "shader": "cinematic",
+      "timeOfDay": 10.5
+    },
+    {
+      "alias": "C1-orbit",
+      "file": "acceptance\\out\\C1-orbit.png",
+      "sha256": "d86778b780234105247c74f9b0eefd1361454d4c830bd6569bb597b251eac97d",
+      "width": 1280,
+      "height": 720,
+      "camera": [
+        33.41710377113688,
+        -26.79475111380854,
+        -13.724570141843557
+      ],
+      "target": [
+        0,
+        -48,
+        34
+      ],
+      "shader": "cinematic",
+      "timeOfDay": 10.5
+    },
+    {
+      "alias": "P0-path-start",
+      "file": "acceptance\\out\\P0-path-start.png",
+      "sha256": "a0d6104f6aac7c5a7f1a6864bda1a5a3b0d7b612288b5bc345ec94861fe1af91",
+      "width": 1280,
+      "height": 720,
+      "camera": [
+        0,
+        -54,
+        90
+      ],
+      "target": [
+        0,
+        -54,
+        20
+      ],
+      "shader": "cinematic",
+      "timeOfDay": 10.5
+    },
+    {
+      "alias": "P3-path-mid",
+      "file": "acceptance\\out\\P3-path-mid.png",
+      "sha256": "d14a3983694077b5f89e33b8ffa49aab0ba12977f827de8d8d5bec39cfe465c8",
+      "width": 1280,
+      "height": 720,
+      "camera": [
+        38,
+        -38,
+        58
+      ],
+      "target": [
+        0,
+        -46,
+        26
+      ],
+      "shader": "cinematic",
+      "timeOfDay": 10.5
+    },
+    {
+      "alias": "S1-performance",
+      "file": "acceptance\\out\\S1-performance.png",
+      "sha256": "25e6884d90502505ee62430d2e7fccb900ad09e46138ad6c52f650b83e5434bb",
+      "width": 1280,
+      "height": 720,
+      "camera": [
+        38,
+        -38,
+        58
+      ],
+      "target": [
+        0,
+        -46,
+        26
+      ],
+      "shader": "performance",
+      "timeOfDay": 10.5
+    },
+    {
+      "alias": "S2-cinematic",
+      "file": "acceptance\\out\\S2-cinematic.png",
+      "sha256": "04f98c3a60915dfe152e0c1fad7640efd29c308d1391140edae0f35234f7cdfe",
+      "width": 1280,
+      "height": 720,
+      "camera": [
+        38,
+        -38,
+        58
+      ],
+      "target": [
+        0,
+        -46,
+        26
+      ],
+      "shader": "cinematic",
+      "timeOfDay": 10.5
+    },
+    {
+      "alias": "S3-night",
+      "file": "acceptance\\out\\S3-night.png",
+      "sha256": "5af34f1618e99cd62b19388ca91ea4cd20324c7bbb24f8eaa9afa54eec3b30f7",
+      "width": 1280,
+      "height": 720,
+      "camera": [
+        38,
+        -38,
+        58
+      ],
+      "target": [
+        0,
+        -46,
+        26
+      ],
+      "shader": "cinematic",
+      "timeOfDay": 22
+    },
+    {
+      "alias": "R1-reload",
+      "file": "acceptance\\out\\R1-reload.png",
+      "sha256": "e492e5a75922031834f1f97cbe523a454d06c10caa1e709f6068bb40c1b51d9a",
+      "width": 1280,
+      "height": 720,
+      "camera": [
+        0,
+        -54,
+        90
+      ],
+      "target": [
+        0,
+        -54,
+        20
+      ],
+      "shader": "cinematic",
+      "timeOfDay": 10.5
+    }
+  ],
+  "metrics": {
+    "benchmark": {
+      "ok": true,
+      "frames": 90,
+      "ms": 46.3,
+      "msPerFrame": 0.514,
+      "fps": 1943.844,
+      "stats": {
+        "fps": 56,
+        "frame": 225,
+        "drawCalls": 61,
+        "triangles": 2231724,
+        "points": 0,
+        "lines": 0,
+        "resolution": [
+          1280,
+          720
+        ],
+        "meshes": 44,
+        "memory": {
+          "geometries": 47,
+          "textures": 7
+        },
+        "scene": {
+          "scanned": 225,
+          "kept": 225,
+          "sections": 450,
+          "blocks": 374168,
+          "radiusChunks": 7,
+          "totalFaces": 1134218,
+          "totalBlocks": 374168,
+          "skipped": 31769,
+          "totalVerts": 4536872,
+          "totalTris": 2268436,
+          "meshes": 44,
+          "layers": {
+            "cutout": 828894,
+            "opaque": 291132,
+            "emissive": 9802,
+            "translucent": 4390
+          },
+          "buildMs": 3498.9,
+          "modelStats": {
+            "states": 205,
+            "models": 0,
+            "faces": 1385,
+            "missing": 0,
+            "fallback": 25
+          },
+          "missingTextures": []
+        },
+        "camera": "path",
+        "position": [
+          38,
+          -38,
+          58
+        ],
+        "shaderPreset": "cinematic",
+        "gpu": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3080 Laptop GPU (0x000024DC) Direct3D11 vs_5_0 ps_5_0, D3D11)"
+      },
+      "resolution": [
+        1280,
+        720
+      ]
+    }
+  },
+  "tools": [
+    "mc_load_world",
+    "mc_reload_world",
+    "mc_world_info",
+    "mc_get_block",
+    "mc_find_blocks",
+    "mc_camera_set",
+    "mc_camera_orbit",
+    "mc_camera_path",
+    "mc_camera_state",
+    "mc_shader_preset",
+    "mc_screenshot",
+    "mc_render_stats",
+    "mc_benchmark",
+    "mc_shutdown"
+  ],
+  "status": "PASS",
+  "finishedAt": "2026-11-07T10:23:04.007Z",
+  "summary": {
+    "checks": 38,
+    "failed": 0,
+    "screenshots": 10,
+    "loadMs": 6117,
+    "benchmarkFps": 1943.844,
+    "triangles": 2268436
+  }
+}

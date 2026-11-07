@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "minecraft-aperture": {
+      "command": "node",
+      "args": [
+        "<PROJECT_ROOT>/src/mcp-server.js"
+      ],
+      "cwd": "<PROJECT_ROOT>",
+      "env": {
+        "MCP_BROWSER_HEADLESS": "1",
+        "MCP_BROWSER_PATH": "<EDGE_OR_CHROME_EXECUTABLE>"
+      }
+    }
+  }
+}

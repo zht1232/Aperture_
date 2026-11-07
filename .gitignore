@@ -1,0 +1,10 @@
+node_modules/
+renders/*
+!renders/.gitkeep
+acceptance/run*.log
+tools/*.log
+tools/*.jar
+tools/classes/
+tools/decompiled/
+tools/__pycache__/
+*.tmp

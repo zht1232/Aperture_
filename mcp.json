@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "minecraft-aperture": {
+      "command": "C:\\Program Files\\nodejs\\node.exe",
+      "args": [
+        "C:\\Users\\Administrator\\Desktop\\mc-mcp-camera\\src\\mcp-server.js"
+      ],
+      "cwd": "C:\\Users\\Administrator\\Desktop\\mc-mcp-camera",
+      "env": {
+        "MCP_BROWSER_HEADLESS": "1",
+        "MCP_BROWSER_PATH": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"
+      }
+    }
+  }
+}
