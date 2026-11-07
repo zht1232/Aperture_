@@ -1,12 +1,12 @@
 {
-  "startedAt": "2026-11-07T10:22:49.809Z",
+  "startedAt": "2026-11-07T16:57:02.050Z",
   "toolCalls": [
     {
       "step": 1,
       "name": "mc_camera_state",
       "args": {},
       "isError": true,
-      "ms": 3,
+      "ms": 4,
       "code": "NOT_LOADED"
     },
     {
@@ -16,7 +16,7 @@
         "path": "./testdata/definitely-not-here"
       },
       "isError": true,
-      "ms": 1,
+      "ms": 2,
       "code": "WORLD_NOT_FOUND"
     },
     {
@@ -44,7 +44,7 @@
         }
       },
       "isError": false,
-      "ms": 6120,
+      "ms": 7156,
       "code": null
     },
     {
@@ -83,7 +83,7 @@
         "limit": 20
       },
       "isError": false,
-      "ms": 41,
+      "ms": 51,
       "code": null
     },
     {
@@ -103,7 +103,7 @@
         "fov": 72
       },
       "isError": false,
-      "ms": 7,
+      "ms": 11,
       "code": null
     },
     {
@@ -116,7 +116,7 @@
         "filename": "acc-A1-nave.png"
       },
       "isError": false,
-      "ms": 107,
+      "ms": 206,
       "code": null
     },
     {
@@ -129,7 +129,7 @@
         "filename": "acc-A2-nave-repeat.png"
       },
       "isError": false,
-      "ms": 94,
+      "ms": 181,
       "code": null
     },
     {
@@ -149,7 +149,7 @@
         "fov": 50
       },
       "isError": false,
-      "ms": 5,
+      "ms": 4,
       "code": null
     },
     {
@@ -162,7 +162,7 @@
         "filename": "acc-B1-aerial.png"
       },
       "isError": false,
-      "ms": 123,
+      "ms": 215,
       "code": null
     },
     {
@@ -180,7 +180,7 @@
         "fov": 55
       },
       "isError": false,
-      "ms": 6,
+      "ms": 5,
       "code": null
     },
     {
@@ -193,7 +193,7 @@
         "filename": "acc-C1-orbit.png"
       },
       "isError": false,
-      "ms": 141,
+      "ms": 218,
       "code": null
     },
     {
@@ -250,7 +250,7 @@
         "seek": 0
       },
       "isError": false,
-      "ms": 6,
+      "ms": 8,
       "code": null
     },
     {
@@ -263,7 +263,7 @@
         "filename": "acc-P0-path-start.png"
       },
       "isError": false,
-      "ms": 136,
+      "ms": 175,
       "code": null
     },
     {
@@ -320,7 +320,7 @@
         "seek": 3
       },
       "isError": false,
-      "ms": 4,
+      "ms": 6,
       "code": null
     },
     {
@@ -333,7 +333,7 @@
         "filename": "acc-P3-path-mid.png"
       },
       "isError": false,
-      "ms": 154,
+      "ms": 210,
       "code": null
     },
     {
@@ -344,7 +344,7 @@
         "time_of_day": 10.5
       },
       "isError": false,
-      "ms": 8,
+      "ms": 13,
       "code": null
     },
     {
@@ -357,7 +357,7 @@
         "filename": "acc-S1-performance.png"
       },
       "isError": false,
-      "ms": 289,
+      "ms": 361,
       "code": null
     },
     {
@@ -368,7 +368,7 @@
         "time_of_day": 10.5
       },
       "isError": false,
-      "ms": 7,
+      "ms": 10,
       "code": null
     },
     {
@@ -381,7 +381,7 @@
         "filename": "acc-S2-cinematic.png"
       },
       "isError": false,
-      "ms": 173,
+      "ms": 212,
       "code": null
     },
     {
@@ -392,7 +392,7 @@
         "time_of_day": 22
       },
       "isError": false,
-      "ms": 13,
+      "ms": 14,
       "code": null
     },
     {
@@ -405,7 +405,7 @@
         "filename": "acc-S3-night.png"
       },
       "isError": false,
-      "ms": 105,
+      "ms": 182,
       "code": null
     },
     {
@@ -423,7 +423,7 @@
         "frames": 90
       },
       "isError": false,
-      "ms": 52,
+      "ms": 67,
       "code": null
     },
     {
@@ -433,7 +433,7 @@
         "radius": 6
       },
       "isError": false,
-      "ms": 5141,
+      "ms": 6867,
       "code": null
     },
     {
@@ -446,7 +446,7 @@
         "filename": "acc-R1-reload.png"
       },
       "isError": false,
-      "ms": 105,
+      "ms": 206,
       "code": null
     }
   ],
@@ -461,6 +461,14 @@
           "mc_world_info",
           "mc_get_block",
           "mc_find_blocks",
+          "mc_set_block",
+          "mc_set_blocks",
+          "mc_build",
+          "mc_fill",
+          "mc_replace",
+          "mc_clone",
+          "mc_undo",
+          "mc_export_save",
           "mc_camera_set",
           "mc_camera_orbit",
           "mc_camera_path",
@@ -489,9 +497,9 @@
       "ok": true,
       "details": {
         "code": "WORLD_NOT_FOUND",
-        "message": "World directory not found: C:\\Users\\Administrator\\Desktop\\mc-mcp-camera\\testdata\\definitely-not-here",
+        "message": "World directory not found: G:\\Aperture_\\testdata\\definitely-not-here",
         "details": {
-          "path": "C:\\Users\\Administrator\\Desktop\\mc-mcp-camera\\testdata\\definitely-not-here"
+          "path": "G:\\Aperture_\\testdata\\definitely-not-here"
         },
         "retryable": false,
         "suggestion": "Pass an absolute path to a Java world directory containing level.dat and a region folder."
@@ -501,13 +509,13 @@
       "name": "MCP load_world succeeds",
       "ok": true,
       "details": {
-        "loadMs": 6117
+        "loadMs": 7154
       }
     },
     {
       "name": "real GPU renderer used",
       "ok": true,
-      "details": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3080 Laptop GPU (0x000024DC) Direct3D11 vs_5_0 ps_5_0, D3D11)"
+      "details": "ANGLE (NVIDIA, NVIDIA GeForce GTX 1050 Ti (0x00001C82) Direct3D11 vs_5_0 ps_5_0, D3D11)"
     },
     {
       "name": "geometry generated",
@@ -628,7 +636,7 @@
       "ok": true,
       "details": {
         "sameSize": true,
-        "meanAbs": 111.31562029803452,
+        "meanAbs": 111.31611183449321,
         "changedFraction": 0.9989333767361112,
         "width": 1280,
         "height": 720
@@ -655,8 +663,8 @@
       "ok": true,
       "details": {
         "sameSize": true,
-        "meanAbs": 81.49864474826387,
-        "changedFraction": 0.9953938802083333,
+        "meanAbs": 81.49974247685213,
+        "changedFraction": 0.9953917100694445,
         "width": 1280,
         "height": 720
       }
@@ -681,7 +689,7 @@
       "ok": true,
       "details": {
         "sameSize": true,
-        "meanAbs": 63.276935402194695,
+        "meanAbs": 63.27603045427787,
         "changedFraction": 0.9867860243055555,
         "width": 1280,
         "height": 720
@@ -723,8 +731,8 @@
       "ok": true,
       "details": {
         "sameSize": true,
-        "meanAbs": 22.823793041076204,
-        "changedFraction": 0.5833582899305556,
+        "meanAbs": 22.82381618922432,
+        "changedFraction": 0.5833289930555555,
         "width": 1280,
         "height": 720
       }
@@ -739,7 +747,7 @@
       "ok": true,
       "details": {
         "sameSize": true,
-        "meanAbs": 55.83103696474481,
+        "meanAbs": 55.83085648152725,
         "changedFraction": 0.9875455729166667,
         "width": 1280,
         "height": 720
@@ -751,16 +759,16 @@
       "details": {
         "tris": 2231724,
         "calls": 61,
-        "fps": 56,
-        "gpu": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3080 Laptop GPU (0x000024DC) Direct3D11 vs_5_0 ps_5_0, D3D11)"
+        "fps": 32,
+        "gpu": "ANGLE (NVIDIA, NVIDIA GeForce GTX 1050 Ti (0x00001C82) Direct3D11 vs_5_0 ps_5_0, D3D11)"
       }
     },
     {
       "name": "benchmark measured >60 fps at 1280x720",
       "ok": true,
       "details": {
-        "fps": 1943.844,
-        "msPerFrame": 0.514,
+        "fps": 1522.843,
+        "msPerFrame": 0.657,
         "tris": 2231724
       }
     },
@@ -768,7 +776,7 @@
       "name": "reload_world rebuilds from disk",
       "ok": true,
       "details": {
-        "loadMs": 5139,
+        "loadMs": 6865,
         "chunks": 169
       }
     },
@@ -787,7 +795,7 @@
     {
       "alias": "A1-nave",
       "file": "acceptance\\out\\A1-nave.png",
-      "sha256": "a0d6104f6aac7c5a7f1a6864bda1a5a3b0d7b612288b5bc345ec94861fe1af91",
+      "sha256": "f4a6c09b29f4e29bd0ea311a6073b003373d538e1227310ee5452c6a5e931bb9",
       "width": 1280,
       "height": 720,
       "camera": [
@@ -806,7 +814,7 @@
     {
       "alias": "A2-nave-repeat",
       "file": "acceptance\\out\\A2-nave-repeat.png",
-      "sha256": "a0d6104f6aac7c5a7f1a6864bda1a5a3b0d7b612288b5bc345ec94861fe1af91",
+      "sha256": "f4a6c09b29f4e29bd0ea311a6073b003373d538e1227310ee5452c6a5e931bb9",
       "width": 1280,
       "height": 720,
       "camera": [
@@ -825,7 +833,7 @@
     {
       "alias": "B1-aerial",
       "file": "acceptance\\out\\B1-aerial.png",
-      "sha256": "b04c5c5576bf732fb00efd132415816bb513592e9aa6b694ca6881d4f00892ce",
+      "sha256": "d7bdce5a6cf0be983acfeefff78bb0431db13295cc478461a4c8b8e4ef685922",
       "width": 1280,
       "height": 720,
       "camera": [
@@ -863,7 +871,7 @@
     {
       "alias": "P0-path-start",
       "file": "acceptance\\out\\P0-path-start.png",
-      "sha256": "a0d6104f6aac7c5a7f1a6864bda1a5a3b0d7b612288b5bc345ec94861fe1af91",
+      "sha256": "f4a6c09b29f4e29bd0ea311a6073b003373d538e1227310ee5452c6a5e931bb9",
       "width": 1280,
       "height": 720,
       "camera": [
@@ -882,7 +890,7 @@
     {
       "alias": "P3-path-mid",
       "file": "acceptance\\out\\P3-path-mid.png",
-      "sha256": "d14a3983694077b5f89e33b8ffa49aab0ba12977f827de8d8d5bec39cfe465c8",
+      "sha256": "b937cdc6a10ea94e8c3be755f5ed4a202cb605088d748a45cc0a3d84cb6c6920",
       "width": 1280,
       "height": 720,
       "camera": [
@@ -901,7 +909,7 @@
     {
       "alias": "S1-performance",
       "file": "acceptance\\out\\S1-performance.png",
-      "sha256": "25e6884d90502505ee62430d2e7fccb900ad09e46138ad6c52f650b83e5434bb",
+      "sha256": "f2a2236ef30be46272578702dbf58cedc990d0a24728eb579b0efe2f43fd789a",
       "width": 1280,
       "height": 720,
       "camera": [
@@ -920,7 +928,7 @@
     {
       "alias": "S2-cinematic",
       "file": "acceptance\\out\\S2-cinematic.png",
-      "sha256": "04f98c3a60915dfe152e0c1fad7640efd29c308d1391140edae0f35234f7cdfe",
+      "sha256": "b937cdc6a10ea94e8c3be755f5ed4a202cb605088d748a45cc0a3d84cb6c6920",
       "width": 1280,
       "height": 720,
       "camera": [
@@ -939,7 +947,7 @@
     {
       "alias": "S3-night",
       "file": "acceptance\\out\\S3-night.png",
-      "sha256": "5af34f1618e99cd62b19388ca91ea4cd20324c7bbb24f8eaa9afa54eec3b30f7",
+      "sha256": "5be18035c3c1ef02846ef9796fda5fcac8a5f9621ef545806a8c243f65c140e7",
       "width": 1280,
       "height": 720,
       "camera": [
@@ -958,7 +966,7 @@
     {
       "alias": "R1-reload",
       "file": "acceptance\\out\\R1-reload.png",
-      "sha256": "e492e5a75922031834f1f97cbe523a454d06c10caa1e709f6068bb40c1b51d9a",
+      "sha256": "1f3de4c0711de7f8723b2e7780a0c40c63bfeec9816f61e782bb1a04d2b0276a",
       "width": 1280,
       "height": 720,
       "camera": [
@@ -979,12 +987,12 @@
     "benchmark": {
       "ok": true,
       "frames": 90,
-      "ms": 46.3,
-      "msPerFrame": 0.514,
-      "fps": 1943.844,
+      "ms": 59.1,
+      "msPerFrame": 0.657,
+      "fps": 1522.843,
       "stats": {
-        "fps": 56,
-        "frame": 225,
+        "fps": 32,
+        "frame": 95,
         "drawCalls": 61,
         "triangles": 2231724,
         "points": 0,
@@ -1016,7 +1024,7 @@
             "emissive": 9802,
             "translucent": 4390
           },
-          "buildMs": 3498.9,
+          "buildMs": 3690.1,
           "modelStats": {
             "states": 205,
             "models": 0,
@@ -1033,7 +1041,7 @@
           58
         ],
         "shaderPreset": "cinematic",
-        "gpu": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3080 Laptop GPU (0x000024DC) Direct3D11 vs_5_0 ps_5_0, D3D11)"
+        "gpu": "ANGLE (NVIDIA, NVIDIA GeForce GTX 1050 Ti (0x00001C82) Direct3D11 vs_5_0 ps_5_0, D3D11)"
       },
       "resolution": [
         1280,
@@ -1047,6 +1055,14 @@
     "mc_world_info",
     "mc_get_block",
     "mc_find_blocks",
+    "mc_set_block",
+    "mc_set_blocks",
+    "mc_build",
+    "mc_fill",
+    "mc_replace",
+    "mc_clone",
+    "mc_undo",
+    "mc_export_save",
     "mc_camera_set",
     "mc_camera_orbit",
     "mc_camera_path",
@@ -1058,13 +1074,13 @@
     "mc_shutdown"
   ],
   "status": "PASS",
-  "finishedAt": "2026-11-07T10:23:04.007Z",
+  "finishedAt": "2026-11-07T16:57:20.206Z",
   "summary": {
     "checks": 38,
     "failed": 0,
     "screenshots": 10,
-    "loadMs": 6117,
-    "benchmarkFps": 1943.844,
+    "loadMs": 7154,
+    "benchmarkFps": 1522.843,
     "triangles": 2268436
   }
 }

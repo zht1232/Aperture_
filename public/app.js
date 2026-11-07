@@ -1,4 +1,8 @@
 import * as THREE from 'three';
+import {
+  CS_DEFAULTS, CS_PRESET, CS_PARAM_ALIASES, CS_PARAM_RANGES, LEGACY_PARAM_DEFAULTS,
+  CS_SKY_FRAGMENT, CS_WATER_VERTEX, CS_WATER_FRAGMENT, CS_FINAL_FRAGMENT, TONE_MAPPINGS,
+} from './shaders/complementary.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('view');
@@ -6,7 +10,7 @@ const loading = $('loading');
 const loadingSub = $('loadingSub');
 
 let renderer, scene, camera, clock;
-let sky, sunLight, moonLight, hemiLight, ambientLight;
+let sky, skyCs, sunLight, moonLight, hemiLight, ambientLight;
 let atlasTexture;
 let sceneMeta = null;
 let meshes = [];
@@ -32,6 +36,7 @@ const shaderState = {
   preset: 'cinematic', exposure: 1.08, shadows: true, shadowSize: 2048,
   bloom: true, bloomStrength: 0.32, rays: true, rayStrength: 0.55,
   fog: 0.00135, timeOfDay: 10.5, saturation: 1.04, vignette: 0.28,
+  ...CS_DEFAULTS,
 };
 
 const PRESETS = {
@@ -39,7 +44,16 @@ const PRESETS = {
   realistic: { exposure: 0.96, shadows: true, shadowSize: 4096, bloom: true, bloomStrength: 0.35, rays: true, rayStrength: 0.42, fog: 0.0019, saturation: 1.0, vignette: 0.2 },
   vanilla: { exposure: 1.0, shadows: true, shadowSize: 1024, bloom: false, bloomStrength: 0.15, rays: false, rayStrength: 0.3, fog: 0.0017, saturation: 1.0, vignette: 0.1 },
   performance: { exposure: 1.0, shadows: false, shadowSize: 1024, bloom: false, bloomStrength: 0.1, rays: false, rayStrength: 0.2, fog: 0.0012, saturation: 1.0, vignette: 0.08 },
+  complementary_reimagined: CS_PRESET,
 };
+
+// Every tunable parameter, with the value used when a preset switch resets the state.
+// `preset` and `timeOfDay` are deliberately NOT reset by a preset switch (same as before).
+const PARAM_DEFAULTS = { ...LEGACY_PARAM_DEFAULTS, ...CS_DEFAULTS };
+const PARAM_KEYS = Object.keys(PARAM_DEFAULTS);
+
+const TONE_MAP_INDEX = { aces: 0, filmic: 1, neutral: 2 };
+
 
 const keys = new Set();
 const sunDir = new THREE.Vector3(0.3, 0.85, 0.35).normalize();
@@ -95,6 +109,8 @@ function setupRenderer() {
 
   sky = makeSky();
   scene.add(sky);
+  skyCs = makeCsSky();
+  scene.add(skyCs);
   const groundGeo = new THREE.PlaneGeometry(3200, 3200);
   groundGeo.rotateX(-Math.PI / 2);
   ground = new THREE.Mesh(groundGeo, new THREE.MeshBasicMaterial({ color: 0x4a5d39, fog: true }));
@@ -206,6 +222,34 @@ function createPost() {
       uSaturation:{value:1.04}, uVignette:{value:0.28},
       uRaysOn:{value:1}, uBloomOn:{value:1},
     });
+
+  // --- Complementary Reimagined composite pass (only used when shaderState.cs === 1) ---
+  post.csFinalMat = makeFullscreenShader(CS_FINAL_FRAGMENT, {
+    tScene:{value:null}, tBloom:{value:null}, tRays:{value:null}, tDepth:{value:null},
+    uResolution:{value:new THREE.Vector2(2,2)},
+    uNear:{value:0.08}, uFar:{value:1400},
+    uInvViewProj:{value:new THREE.Matrix4()}, uView:{value:new THREE.Matrix4()}, uViewProj:{value:new THREE.Matrix4()},
+    uCamPos:{value:new THREE.Vector3()},
+    uSunDir:{value:new THREE.Vector3(0,1,0)}, uSunColor:{value:new THREE.Color(1,1,1)},
+    uFogColor:{value:new THREE.Color(0.62,0.72,0.82)}, uFogSunColor:{value:new THREE.Color(1.0,0.86,0.62)},
+    uExposure:{value:1}, uBloomStrength:{value:0}, uRayStrength:{value:0},
+    uSaturation:{value:1}, uVignette:{value:0}, uContrast:{value:1}, uTemperature:{value:0},
+    uSplitWarm:{value:0}, uSplitCool:{value:0}, uSharpen:{value:0},
+    uSsao:{value:0}, uSsaoStrength:{value:1}, uSsaoRadius:{value:1.5},
+    uFogDensity:{value:0}, uHeightFog:{value:0}, uHeightFalloff:{value:20}, uFogBase:{value:-64},
+    uBloomOn:{value:0}, uRaysOn:{value:0}, uToneMap:{value:0},
+  });
+
+  // Depth prepass material for SSAO / height fog / water depth (CS only, allocated lazily).
+  post.depthMat = new THREE.MeshDepthMaterial({ depthPacking: THREE.BasicDepthPacking });
+  post.depthMat.colorWrite = false;
+  post.depthMat.side = THREE.DoubleSide;
+  post.depthMat.alphaTest = 0.35;
+  if (atlasTexture) post.depthMat.map = atlasTexture;
+
+  post.blurBaseTexel = new THREE.Vector2(1/800, 1/450);
+  post.size = { w: 2, h: 2 };
+  post.depthRT = null;
   post.enabled = true;
 }
 
@@ -216,6 +260,9 @@ function resizePost(w, h) {
   post.brightRT.setSize(bw, bh); post.blurA.setSize(bw, bh); post.blurB.setSize(bw, bh);
   post.raysRT.setSize(Math.max(2, Math.floor(w / 4)), Math.max(2, Math.floor(h / 4)));
   post.blurMat.uniforms.uTexel.value.set(1 / bw, 1 / bh);
+  post.blurBaseTexel.set(1 / bw, 1 / bh);
+  post.size = { w, h };
+  if (post.depthRT) post.depthRT.setSize(w, h);
 }
 
 function renderQuad(material, target) {
@@ -224,26 +271,141 @@ function renderQuad(material, target) {
   renderer.render(post.quadScene, post.quadCamera);
 }
 
+// ---- Complementary Reimagined helpers -------------------------------------------------------
+
+function ensureDepthRT() {
+  if (post.depthRT) return post.depthRT;
+  const w = Math.max(2, post.size?.w || renderer.domElement.width);
+  const h = Math.max(2, post.size?.h || renderer.domElement.height);
+  const rt = new THREE.WebGLRenderTarget(w, h, { type: THREE.UnsignedByteType, depthBuffer: true, samples: 0 });
+  rt.texture.minFilter = THREE.NearestFilter;
+  rt.texture.magFilter = THREE.NearestFilter;
+  rt.texture.generateMipmaps = false;
+  const dt = new THREE.DepthTexture(w, h);
+  dt.type = THREE.UnsignedIntType;
+  dt.format = THREE.DepthFormat;
+  dt.minFilter = THREE.NearestFilter;
+  dt.magFilter = THREE.NearestFilter;
+  rt.depthTexture = dt;
+  post.depthRT = rt;
+  return rt;
+}
+
+/** Opaque-only depth prepass: feeds SSAO, height fog and water depth without extra colour cost. */
+function renderDepthPrepass() {
+  const rt = ensureDepthRT();
+  if (rt.width !== post.size.w || rt.height !== post.size.h) rt.setSize(post.size.w, post.size.h);
+  if (post.depthMat && atlasTexture && post.depthMat.map !== atlasTexture) post.depthMat.map = atlasTexture;
+  const prevSky = sky ? sky.visible : false;
+  const prevSkyCs = skyCs ? skyCs.visible : false;
+  if (sky) sky.visible = false;
+  if (skyCs) skyCs.visible = false;
+  const hidden = [];
+  for (const m of meshes) {
+    const layer = m.userData.meshMeta?.layer;
+    if ((layer === 'water' || layer === 'translucent') && m.visible) { hidden.push(m); m.visible = false; }
+  }
+  const prevAuto = renderer.shadowMap.autoUpdate;
+  renderer.shadowMap.autoUpdate = false;
+  scene.overrideMaterial = post.depthMat;
+  renderer.setRenderTarget(rt);
+  renderer.clear();
+  renderer.render(scene, camera);
+  scene.overrideMaterial = null;
+  renderer.shadowMap.autoUpdate = prevAuto;
+  for (const m of hidden) m.visible = true;
+  if (sky) sky.visible = prevSky;
+  if (skyCs) skyCs.visible = prevSkyCs;
+  renderer.setRenderTarget(null);
+  renderer.info.reset();
+}
+
+const csTmpColor = new THREE.Color();
+
+/** Deterministic "auto exposure": keyed off sun altitude only, so screenshots stay reproducible. */
+function csAutoExposureFactor() {
+  if (!shaderState.autoExposure) return 1;
+  const day = smooth(clamp((sunDir.y + 0.12) / 0.34, 0, 1));
+  const f = 1 + shaderState.autoExposure * ((1 - day) * 0.55 - day * 0.08);
+  return clamp(f, 0.55, 2.4);
+}
+
+function syncCsFrameUniforms() {
+  const time = screenshotMode ? 0 : performance.now() / 1000;
+  if (skyCs) {
+    const u = skyCs.material.uniforms;
+    u.uClouds.value = shaderState.clouds ? 1 : 0;
+    u.uCloudCoverage.value = shaderState.cloudCoverage;
+    u.uCloudDensity.value = shaderState.cloudDensity;
+    u.uCloudSpeed.value = shaderState.cloudSpeed;
+    u.uCloudHeight.value = shaderState.cloudHeight;
+    u.uCloudScale.value = shaderState.cloudScale;
+    u.uSunWarmth.value = shaderState.sunWarmth;
+    u.uSkyIntensity.value = shaderState.skyIntensity;
+    u.uAtmosphere.value = shaderState.atmosphere;
+    u.uTime.value = time;
+  }
+  const waterCs = materials.waterCs;
+  if (waterCs) {
+    const u = waterCs.uniforms;
+    u.uTime.value = time;
+    u.uNear.value = camera.near;
+    u.uFar.value = camera.far;
+    u.uResolution.value.set(post.size.w, post.size.h);
+    u.uDepth.value = post.depthRT ? post.depthRT.depthTexture : null;
+    u.uWaves.value = shaderState.waterWaves;
+    u.uFresnel.value = shaderState.waterFresnel;
+    u.uReflection.value = shaderState.waterReflection;
+    u.uWaveHeight.value = shaderState.waterWaveHeight;
+    u.uFoam.value = shaderState.waterFoam;
+  }
+}
+
 function renderFramePost() {
   const rt = post.sceneRT;
+  const cs = shaderState.cs === 1;
+  // During screenshots, fully drain the GPU between passes. Pass ordering hazards (depth prepass ->
+  // composite, sceneRT -> bloom -> composite) are normally implicit; forcing completion makes the
+  // captured pixels reproducible on ANGLE/D3D11.
+  const syncPoint = screenshotMode ? () => renderer.getContext().finish() : () => {};
+  // CS does its own distance + height fog in the composite pass; legacy path keeps engine fog.
+  if (scene.fog) scene.fog.density = cs ? 0 : shaderState.fog;
+
+  if (cs) {
+    ensureDepthRT();
+    syncCsFrameUniforms();
+    renderDepthPrepass();
+    syncPoint();
+  }
+
   renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
   renderer.toneMapping = THREE.NoToneMapping;
   renderer.setRenderTarget(rt);
   renderer.clear();
   renderer.render(scene, camera);
+  syncPoint();
 
   if (shaderState.bloom || shaderState.rays) {
     post.brightMat.uniforms.tDiffuse.value = rt.texture;
-    post.brightMat.uniforms.uThreshold.value = 0.72;
+    post.brightMat.uniforms.uThreshold.value = cs ? shaderState.bloomThreshold : 0.72;
+    post.brightMat.uniforms.uKnee.value = cs ? shaderState.bloomKnee : 0.45;
     renderQuad(post.brightMat, post.brightRT);
     if (shaderState.bloom) {
-      post.blurMat.uniforms.tDiffuse.value = post.brightRT.texture;
-      post.blurMat.uniforms.uDirection.value.set(1, 0);
-      renderQuad(post.blurMat, post.blurA);
-      post.blurMat.uniforms.tDiffuse.value = post.blurA.texture;
-      post.blurMat.uniforms.uDirection.value.set(0, 1);
-      renderQuad(post.blurMat, post.blurB);
+      const iterations = cs ? clamp(Math.round(shaderState.bloomIterations), 1, 2) : 1;
+      let srcTex = post.brightRT.texture;
+      for (let i = 0; i < iterations; i++) {
+        const scale = cs && i > 0 ? Math.max(1, shaderState.bloomRadius) : 1;
+        post.blurMat.uniforms.tDiffuse.value = srcTex;
+        post.blurMat.uniforms.uDirection.value.set(1, 0);
+        post.blurMat.uniforms.uTexel.value.set(post.blurBaseTexel.x * scale, post.blurBaseTexel.y * scale);
+        renderQuad(post.blurMat, post.blurA);
+        post.blurMat.uniforms.tDiffuse.value = post.blurA.texture;
+        post.blurMat.uniforms.uDirection.value.set(0, 1);
+        renderQuad(post.blurMat, post.blurB);
+        srcTex = post.blurB.texture;
+      }
     }
+    syncPoint();
   }
 
   const facing = new THREE.Vector3();
@@ -256,7 +418,53 @@ function renderFramePost() {
   post.raysMat.uniforms.tDiffuse.value = post.brightRT.texture;
   post.raysMat.uniforms.uSunScreen.value.set((ndc.x + 1) / 2, (ndc.y + 1) / 2);
   post.raysMat.uniforms.uVisible.value = sunVisible;
+  post.raysMat.uniforms.uDensity.value = cs ? shaderState.raysDensity : 0.95;
+  post.raysMat.uniforms.uDecay.value = cs ? shaderState.raysDecay : 0.955;
   if (shaderState.rays) renderQuad(post.raysMat, post.raysRT);
+  syncPoint();
+
+  if (cs) {
+    const f = post.csFinalMat.uniforms;
+    f.tScene.value = rt.texture;
+    f.tBloom.value = post.blurB.texture;
+    f.tRays.value = post.raysRT.texture;
+    f.tDepth.value = post.depthRT ? post.depthRT.depthTexture : null;
+    f.uResolution.value.set(post.size.w, post.size.h);
+    f.uNear.value = camera.near;
+    f.uFar.value = camera.far;
+    f.uView.value.copy(camera.matrixWorldInverse);
+    f.uViewProj.value.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    f.uInvViewProj.value.copy(camera.matrixWorld).multiply(camera.projectionMatrixInverse);
+    f.uCamPos.value.copy(camera.position);
+    f.uSunDir.value.copy(sunDir);
+    f.uSunColor.value.copy(sunLight.color);
+    const fogBaseColor = scene.fog ? scene.fog.color : sky.material.uniforms.uHorizon.value;
+    f.uFogColor.value.copy(fogBaseColor);
+    f.uFogSunColor.value.copy(csTmpColor.copy(fogBaseColor).lerp(sunLight.color, 0.65));
+    f.uExposure.value = shaderState.exposure * csAutoExposureFactor();
+    f.uBloomStrength.value = shaderState.bloom ? shaderState.bloomStrength : 0;
+    f.uRayStrength.value = shaderState.rays ? shaderState.rayStrength : 0;
+    f.uBloomOn.value = shaderState.bloom ? 1 : 0;
+    f.uRaysOn.value = shaderState.rays ? 1 : 0;
+    f.uSaturation.value = shaderState.saturation;
+    f.uVignette.value = shaderState.vignette;
+    f.uContrast.value = shaderState.contrast;
+    f.uTemperature.value = shaderState.temperature;
+    f.uSplitWarm.value = shaderState.splitWarm;
+    f.uSplitCool.value = shaderState.splitCool;
+    f.uSharpen.value = shaderState.sharpen;
+    f.uSsao.value = shaderState.ssao ? 1 : 0;
+    f.uSsaoStrength.value = shaderState.ssaoStrength;
+    f.uSsaoRadius.value = shaderState.ssaoRadius;
+    f.uFogDensity.value = shaderState.fog;
+    f.uHeightFog.value = shaderState.heightFog;
+    f.uHeightFalloff.value = shaderState.heightFogFalloff;
+    f.uFogBase.value = shaderState.fogBase;
+    f.uToneMap.value = TONE_MAP_INDEX[shaderState.toneMapping] ?? 0;
+    renderQuad(post.csFinalMat, null);
+    syncPoint();
+    return;
+  }
 
   const f = post.finalMat.uniforms;
   f.tScene.value = rt.texture;
@@ -270,6 +478,7 @@ function renderFramePost() {
   f.uSaturation.value = shaderState.saturation;
   f.uVignette.value = shaderState.vignette;
   renderQuad(post.finalMat, null);
+  syncPoint();
 }
 
 function makeSky() {
@@ -334,9 +543,48 @@ function makeSky() {
   return mesh;
 }
 
+function makeCsSky() {
+  const geo = new THREE.SphereGeometry(900, 40, 24);
+  const mat = new THREE.ShaderMaterial({
+    // drawn after all opaque geometry with depth test: sky pixels hidden behind the world cost no
+    // shading, which pays for the volumetric cloud layer.
+    side: THREE.BackSide, depthWrite: false, depthTest: true,
+    uniforms: {
+      uTop: { value: new THREE.Color(0x3f78c8) },
+      uHorizon: { value: new THREE.Color(0xcfe1f2) },
+      uSunDir: { value: sunDir.clone() },
+      uSunColor: { value: new THREE.Color(0xfff0c8) },
+      uDay: { value: 1 },
+      uTime: { value: 0 },
+      uClouds: { value: 1 }, uCloudCoverage: { value: 0.5 }, uCloudDensity: { value: 1 },
+      uCloudSpeed: { value: 0.35 }, uCloudHeight: { value: 120 }, uCloudScale: { value: 1 },
+      uSunWarmth: { value: 0.6 }, uSkyIntensity: { value: 1 }, uAtmosphere: { value: 1 },
+    },
+    vertexShader: `
+      varying vec3 vDir;
+      void main(){
+        vDir = normalize(position);
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        gl_Position = projectionMatrix * mv;
+      }
+    `,
+    fragmentShader: CS_SKY_FRAGMENT,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = 1000;
+  mesh.visible = false;
+  return mesh;
+}
+
 function setViewport(w, h) {
   w = Math.max(64, Math.round(w)); h = Math.max(64, Math.round(h));
-  renderer.setSize(w, h, false);
+  // NOTE: assigning canvas.width/height reallocates and clears the WebGL drawing buffer, and
+  // Chromium defers that reallocation. Repeating it with unchanged dimensions made repeated
+  // screenshots capture a stale buffer (visible only with animated shading). Only resize on change.
+  if (renderer.domElement.width !== w || renderer.domElement.height !== h) {
+    renderer.setSize(w, h, false);
+  }
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   resizePost(w, h);
@@ -428,6 +676,26 @@ function makeWaterMaterial() {
   });
 }
 
+/** CS-style water: fresnel sky reflection, 4-wave normals, sun glitter, real water depth + shore foam. */
+function makeCsWaterMaterial() {
+  return new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    uniforms: {
+      uTime: { value: 0 }, uSunDir: { value: sunDir.clone() },
+      uDeep: { value: new THREE.Color(0x0e2f4c) }, uShallow: { value: new THREE.Color(0x3f9fbd) },
+      uSky: { value: new THREE.Color(0x9fc8e8) }, uSkyTop: { value: new THREE.Color(0x3f78c8) },
+      uSunColor: { value: new THREE.Color(0xfff0c8) }, uFogColor: { value: new THREE.Color(0x9db6cf) },
+      uFog: { value: shaderState.fog },
+      uDepth: { value: null }, uResolution: { value: new THREE.Vector2(2, 2) },
+      uNear: { value: 0.08 }, uFar: { value: 1400 },
+      uWaves: { value: 1 }, uFresnel: { value: 1 }, uReflection: { value: 1 },
+      uWaveHeight: { value: 0.55 }, uFoam: { value: 1 },
+    },
+    vertexShader: CS_WATER_VERTEX,
+    fragmentShader: CS_WATER_FRAGMENT,
+  });
+}
+
 async function buildMeshes(meta, buffer) {
   atlasTexture = await new THREE.TextureLoader().loadAsync(meta.atlas.url);
   atlasTexture.colorSpace = THREE.SRGBColorSpace;
@@ -437,6 +705,7 @@ async function buildMeshes(meta, buffer) {
   atlasTexture.generateMipmaps = true;
   atlasTexture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
   for (const layer of ['opaque', 'cutout', 'translucent', 'emissive', 'water', 'lava']) materials[layer] = makeMaterial(layer);
+  materials.waterCs = makeCsWaterMaterial();
   const world = new THREE.Group(); world.name = 'world'; scene.add(world);
   let built = 0;
   for (const m of meta.meshes) {
@@ -499,12 +768,61 @@ function applyWorldInfo(meta) {
   $('stRes').textContent = `${renderer.domElement.width}×${renderer.domElement.height}`;
 }
 
+/** Reset every tunable parameter to its default (used when a preset is selected). */
+function resetShaderParams() {
+  for (const k of PARAM_KEYS) shaderState[k] = PARAM_DEFAULTS[k];
+}
+
+/** Apply an override map: resolves CS-style aliases, coerces numbers, clamps documented ranges. */
+function applyShaderOverrides(overrides) {
+  if (!overrides || typeof overrides !== 'object') return;
+  for (const [rawKey, rawValue] of Object.entries(overrides)) {
+    if (rawValue === undefined || rawValue === null) continue;
+    if (rawKey === 'preset') { if (typeof rawValue === 'string') shaderState.preset = rawValue; continue; }
+    const key = CS_PARAM_ALIASES[rawKey] || rawKey;
+    if (key === 'timeOfDay') {
+      const t = Number(rawValue);
+      if (Number.isFinite(t)) shaderState.timeOfDay = clamp(t, 0, 24);
+      continue;
+    }
+    if (!(key in PARAM_DEFAULTS)) continue;
+    const def = PARAM_DEFAULTS[key];
+    if (typeof def === 'boolean') { shaderState[key] = !!rawValue; continue; }
+    if (typeof def === 'string') {
+      if (key === 'toneMapping') {
+        const v = String(rawValue).toLowerCase();
+        if (!TONE_MAPPINGS.includes(v)) {
+          throw new Error(`INVALID_ARGUMENT: toneMapping must be one of ${TONE_MAPPINGS.join('|')} (got "${rawValue}")`);
+        }
+        shaderState[key] = v;
+      }
+      continue;
+    }
+    const n = Number(rawValue);
+    if (!Number.isFinite(n)) continue;
+    const range = CS_PARAM_RANGES[key];
+    shaderState[key] = range ? clamp(n, range[0], range[1]) : n;
+  }
+}
+
+/** Current effective parameters (CS-style names + legacy aliases). */
+function getShaderParams() {
+  const out = { preset: shaderState.preset };
+  for (const k of PARAM_KEYS) out[k] = shaderState[k];
+  out.timeOfDay = shaderState.timeOfDay;
+  out.shadowMapResolution = shaderState.shadowSize;
+  out.fogDensity = shaderState.fog;
+  out.csEnabled = shaderState.cs === 1;
+  return out;
+}
+
 function applyShader(preset, overrides = {}, silent = false) {
   if (preset && PRESETS[preset]) {
     shaderState.preset = preset;
+    resetShaderParams();
     Object.assign(shaderState, PRESETS[preset]);
   }
-  for (const [k, v] of Object.entries(overrides || {})) if (k in shaderState && v !== undefined) shaderState[k] = v;
+  applyShaderOverrides(overrides);
   renderer.toneMappingExposure = shaderState.exposure;
   renderer.shadowMap.enabled = shaderState.shadows;
   if (scene.fog) scene.fog.density = shaderState.fog;
@@ -516,10 +834,26 @@ function applyShader(preset, overrides = {}, silent = false) {
     sunLight.castShadow = shaderState.shadows;
   }
   for (const m of meshes) { m.castShadow = shaderState.shadows && m.userData.meshMeta?.layer === 'opaque'; m.receiveShadow = shaderState.shadows; }
-  const water = materials.water;
-  if (water) { water.uniforms.uFog.value = shaderState.fog; }
+  // Complementary Reimagined swaps in its own sky + water materials; legacy presets keep the originals.
+  const cs = shaderState.cs === 1;
+  if (!materials.waterCs) materials.waterCs = makeCsWaterMaterial();
+  if (sky) sky.visible = !cs;
+  if (skyCs) skyCs.visible = cs;
+  for (const m of meshes) {
+    if (m.userData.meshMeta?.layer === 'water') m.material = cs ? materials.waterCs : materials.water;
+  }
+  if (materials.water) materials.water.uniforms.uFog.value = shaderState.fog;
+  if (materials.waterCs) materials.waterCs.uniforms.uFog.value = shaderState.fog;
   if (!silent) syncShaderUI();
   updateSun();
+  return { preset: shaderState.preset, params: getShaderParams() };
+}
+
+function setShaderParams(partial = {}) {
+  const spec = partial && typeof partial === 'object' ? partial : {};
+  const { preset, ...rest } = spec;
+  if (preset && PRESETS[preset]) return applyShader(preset, rest);
+  return applyShader(null, spec);
 }
 
 function updateSun() {
@@ -538,6 +872,14 @@ function updateSun() {
   sky.material.uniforms.uSunDir.value.copy(sunDir);
   sky.material.uniforms.uDay.value = day;
   sky.material.uniforms.uSunColor.value.setHex(day > 0.45 ? 0xfff1cf : 0xffb26b);
+  if (skyCs) {
+    const u = skyCs.material.uniforms;
+    u.uTop.value.copy(top);
+    u.uHorizon.value.copy(horizon);
+    u.uSunDir.value.copy(sunDir);
+    u.uDay.value = day;
+    u.uSunColor.value.copy(sky.material.uniforms.uSunColor.value);
+  }
   const sunColor = new THREE.Color().setHex(sunDir.y < 0.18 ? 0xffb06a : 0xfff1d6);
   sunLight.color.copy(sunColor);
   sunLight.intensity = 0.02 + 3.6 * day;
@@ -547,6 +889,15 @@ function updateSun() {
   scene.fog.color.copy(horizon);
   if (ground) ground.material.color.setHex(day > 0.35 ? 0x435835 : 0x1c2720);
   if (materials.water) { materials.water.uniforms.uSky.value.copy(horizon); materials.water.uniforms.uSunDir.value.copy(sunDir); materials.water.uniforms.uSunColor.value.copy(sunColor); materials.water.uniforms.uFogColor.value.copy(horizon); }
+  if (materials.waterCs) {
+    const u = materials.waterCs.uniforms;
+    u.uSky.value.copy(horizon);
+    u.uSkyTop.value.copy(top);
+    u.uSunDir.value.copy(sunDir);
+    u.uSunColor.value.copy(sunColor);
+    u.uFogColor.value.copy(horizon);
+    u.uFog.value = shaderState.fog;
+  }
   if (renderer) renderer.setClearColor(horizon, 1);
 }
 
@@ -589,8 +940,11 @@ function updateCamera(dt) {
     moonLight.target.updateMatrixWorld();
   }
   sky.position.copy(camPos);
+  if (skyCs) skyCs.position.copy(camPos);
   if (pointLights.length && frameCount % 15 === 0) updatePointLights();
-  if (materials.water) materials.water.uniforms.uTime.value = screenshotMode ? 0 : now / 1000;
+  const timeNow = screenshotMode ? 0 : now / 1000;
+  if (materials.water) materials.water.uniforms.uTime.value = timeNow;
+  if (materials.waterCs) materials.waterCs.uniforms.uTime.value = timeNow;
 }
 
 function applyCameraToThree() {
@@ -722,7 +1076,17 @@ function syncCameraUI() {
   const yp = yawPitchFromDir(tmpV.subVectors(camState.target, camState.position).normalize());
   $('camReadout').textContent = `mode ${camState.mode.toUpperCase()}  ·  ${round(camState.position.x)}, ${round(camState.position.y)}, ${round(camState.position.z)}\nyaw ${round(yp.yaw)}°  pitch ${round(yp.pitch)}°  fov ${round(camState.fov)}°`;
 }
+/** index.html is not part of the shader change scope, so the new preset option is injected here. */
+function ensurePresetOptions() {
+  const sel = $('preset');
+  if (!sel || sel.querySelector('option[value="complementary_reimagined"]')) return;
+  const opt = document.createElement('option');
+  opt.value = 'complementary_reimagined';
+  opt.textContent = 'Complementary Reimagined · CS 风格';
+  sel.insertBefore(opt, sel.querySelector('option[value="custom"]') || null);
+}
 function syncShaderUI() {
+  ensurePresetOptions();
   $('preset').value = shaderState.preset;
   $('presetTag').textContent = shaderState.preset.toUpperCase();
   $('shadowToggle').checked = shaderState.shadows;
@@ -836,8 +1200,18 @@ async function takeScreenshot({ width = baseViewport.width, height = baseViewpor
   try {
     setViewport(width, height);
     for (let i = 0; i < Math.max(1, settleFrames); i++) await new Promise(r => requestAnimationFrame(r));
+    // Deterministic capture: every time-dependent input is frozen while screenshotMode is true
+    // (sky/water uTime -> 0, auto exposure is a pure function of the sun altitude). Flush the GPU
+    // queue and render the frame twice so the half-float/MSAA + depth-texture passes always start
+    // from a fully written pipeline state; otherwise consecutive captures can straddle a resolve.
+    const gl = renderer.getContext();
     updateCamera(0);
     renderFrame();
+    gl.finish();
+    renderer.info.reset();
+    updateCamera(0);
+    renderFrame();
+    gl.finish();
     const dataUrl = renderer.domElement.toDataURL('image/png');
     const state = getState();
     const stats = getStats();
@@ -904,6 +1278,132 @@ function updateHud() {
   }
 }
 
+/**
+ * Compile + render smoke test for shaders that are not guaranteed to be on screen:
+ * CS water (worlds without water never attach it) and the CS composite (inactive outside CS mode).
+ * Returns per-material {mean,max,glError} plus an `ok` aggregate so tests can assert on it.
+ */
+function shaderSelfTest() {
+  const gl = renderer.getContext();
+  const results = {};
+  const prevTarget = renderer.getRenderTarget();
+  const prevAuto = renderer.shadowMap.autoUpdate;
+  const created = [];
+  renderer.shadowMap.autoUpdate = false;
+  const tempScene = new THREE.Scene();
+  const quadGeo = new THREE.PlaneGeometry(2, 2);
+  const sphereGeo = new THREE.SphereGeometry(1, 16, 12);
+  const cam = new THREE.PerspectiveCamera(60, 1, 0.1, 100);
+  cam.position.set(0, 0, 3); cam.lookAt(0, 0, 0); cam.updateMatrixWorld();
+  const outRT = new THREE.WebGLRenderTarget(16, 16, { type: THREE.UnsignedByteType });
+  created.push(outRT);
+  const px = new Uint8Array(16 * 16 * 4);
+  const readOut = () => {
+    renderer.readRenderTargetPixels(outRT, 0, 0, 16, 16, px);
+    let sum = 0, max = 0, nan = 0;
+    for (let i = 0; i < px.length; i += 4) {
+      const v = (px[i] + px[i + 1] + px[i + 2]) / 3;
+      sum += v; if (v > max) max = v; if (v !== v) nan++;
+    }
+    return { mean: round(sum / 256), max, glError: gl.getError(), nan };
+  };
+  const renderQuadMat = (mat) => {
+    const mesh = new THREE.Mesh(quadGeo, mat);
+    tempScene.clear(); tempScene.add(mesh);
+    renderer.setRenderTarget(outRT); renderer.clear(); renderer.render(tempScene, cam);
+    return readOut();
+  };
+  try {
+    // depth probe (16x16 sphere) feeds SSAO + water depth with realistic values
+    const depthRT = new THREE.WebGLRenderTarget(16, 16, { type: THREE.UnsignedByteType, depthBuffer: true });
+    const dt = new THREE.DepthTexture(16, 16);
+    dt.type = THREE.UnsignedIntType; dt.format = THREE.DepthFormat;
+    depthRT.depthTexture = dt;
+    created.push(depthRT);
+    const probeDepthMat = new THREE.MeshDepthMaterial({ depthPacking: THREE.BasicDepthPacking });
+    probeDepthMat.colorWrite = false;
+    tempScene.clear(); tempScene.add(new THREE.Mesh(sphereGeo, probeDepthMat));
+    tempScene.overrideMaterial = probeDepthMat;
+    renderer.setRenderTarget(depthRT); renderer.clear(); renderer.render(tempScene, cam);
+    tempScene.overrideMaterial = null;
+
+    // 1) CS water shader
+    const waterMat = materials.waterCs || (materials.waterCs = makeCsWaterMaterial());
+    waterMat.uniforms.uTime.value = 0;
+    waterMat.uniforms.uResolution.value.set(16, 16);
+    waterMat.uniforms.uNear.value = cam.near;
+    waterMat.uniforms.uFar.value = cam.far;
+    waterMat.uniforms.uSunDir.value.copy(sunDir);
+    waterMat.uniforms.uDepth.value = depthRT.depthTexture;
+    results.water = renderQuadMat(waterMat);
+    waterMat.uniforms.uWaves.value = 0;
+    results.waterCalm = renderQuadMat(waterMat);
+    waterMat.uniforms.uWaves.value = 1;
+
+    // 2) CS sky (day, then night to exercise stars/moon code paths)
+    cam.position.set(0, 0, 0); cam.lookAt(0, 0, -1); cam.updateMatrixWorld();
+    tempScene.clear();
+    tempScene.add(new THREE.Mesh(skyCs.geometry, skyCs.material));
+    const skyDay = skyCs.material.uniforms.uDay.value;
+    renderer.setRenderTarget(outRT); renderer.clear(); renderer.render(tempScene, cam);
+    results.skyDay = readOut();
+    skyCs.material.uniforms.uDay.value = 0;
+    renderer.setRenderTarget(outRT); renderer.clear(); renderer.render(tempScene, cam);
+    results.skyNight = readOut();
+    skyCs.material.uniforms.uDay.value = skyDay;
+    cam.position.set(0, 0, 3); cam.lookAt(0, 0, 0); cam.updateMatrixWorld();
+
+    // 3) CS composite (SSAO + height fog + CAS-lite + all three tone mappers)
+    const dummyCol = new THREE.WebGLRenderTarget(16, 16, { type: THREE.UnsignedByteType });
+    created.push(dummyCol);
+    tempScene.clear(); tempScene.add(new THREE.Mesh(quadGeo, new THREE.MeshBasicMaterial({ color: 0x6688aa })));
+    renderer.setRenderTarget(dummyCol); renderer.clear(); renderer.render(tempScene, cam);
+
+    const u = post.csFinalMat.uniforms;
+    u.tScene.value = dummyCol.texture;
+    u.tBloom.value = dummyCol.texture;
+    u.tRays.value = dummyCol.texture;
+    u.tDepth.value = depthRT.depthTexture;
+    u.uResolution.value.set(16, 16);
+    u.uNear.value = cam.near; u.uFar.value = cam.far;
+    u.uView.value.copy(cam.matrixWorldInverse);
+    u.uViewProj.value.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
+    u.uInvViewProj.value.copy(cam.matrixWorld).multiply(cam.projectionMatrixInverse);
+    u.uCamPos.value.copy(cam.position);
+    u.uSunDir.value.copy(sunDir);
+    u.uSunColor.value.setRGB(1.0, 0.9, 0.8);
+    u.uFogColor.value.setRGB(0.6, 0.7, 0.8);
+    u.uFogSunColor.value.setRGB(1.0, 0.8, 0.6);
+    u.uExposure.value = 1;
+    u.uBloomStrength.value = 0.3; u.uRayStrength.value = 0.2;
+    u.uSaturation.value = 1; u.uVignette.value = 0.2; u.uContrast.value = 1; u.uTemperature.value = 0.05;
+    u.uSplitWarm.value = 0.05; u.uSplitCool.value = 0.05; u.uSharpen.value = 0.35;
+    u.uSsao.value = 1; u.uSsaoStrength.value = 1; u.uSsaoRadius.value = 1.6;
+    u.uFogDensity.value = 0.005; u.uHeightFog.value = 0.01;
+    u.uHeightFalloff.value = 5; u.uFogBase.value = -2;
+    u.uBloomOn.value = 1; u.uRaysOn.value = 1;
+    u.uToneMap.value = 0; results.compositeAces = renderQuadMat(post.csFinalMat);
+    u.uToneMap.value = 1; results.compositeFilmic = renderQuadMat(post.csFinalMat);
+    u.uToneMap.value = 2; results.compositeNeutral = renderQuadMat(post.csFinalMat);
+
+    const checks = {
+      water: results.water.max > 0 && results.water.glError === 0 && results.water.nan === 0,
+      waterCalm: results.waterCalm.max > 0 && results.waterCalm.nan === 0,
+      skyDay: results.skyDay.max > 0 && results.skyDay.glError === 0 && results.skyDay.nan === 0,
+      skyNight: results.skyNight.max > 0 && results.skyNight.nan === 0,
+      compositeAces: results.compositeAces.max > 0 && results.compositeAces.glError === 0 && results.compositeAces.nan === 0,
+      compositeFilmic: results.compositeFilmic.max > 0 && results.compositeFilmic.nan === 0,
+      compositeNeutral: results.compositeNeutral.max > 0 && results.compositeNeutral.nan === 0,
+    };
+    return { ok: Object.values(checks).every(Boolean), checks, results };
+  } finally {
+    for (const rt of created) rt.dispose();
+    tempScene.clear();
+    renderer.shadowMap.autoUpdate = prevAuto;
+    renderer.setRenderTarget(prevTarget);
+  }
+}
+
 window.MCP_RENDER_API = {
   ready: true,
   setCamera(spec) {
@@ -916,6 +1416,25 @@ window.MCP_RENDER_API = {
   getState,
   getStats,
   applyShader,
+  setShaderParams,
+  getShaderParams,
+  getPresets() { return Object.keys(PRESETS); },
+  shaderSelfTest,
+  /** Measure real requestAnimationFrame cadence (the HUD counter lags/noises after heavy ops). */
+  async measureFps(durationMs = 1000) {
+    const dur = clamp(Number(durationMs) || 1000, 200, 5000);
+    return await new Promise(resolve => {
+      let frames = 0;
+      const t0 = performance.now();
+      const tick = () => {
+        frames++;
+        const elapsed = performance.now() - t0;
+        if (elapsed >= dur) resolve({ fps: round(frames * 1000 / elapsed), frames, ms: round(elapsed), resolution: [renderer.domElement.width, renderer.domElement.height] });
+        else requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+  },
   setTimeOfDay(t) { shaderState.timeOfDay = clamp(Number(t), 0, 24); updateSun(); syncShaderUI(); return { timeOfDay: shaderState.timeOfDay }; },
   setFov(f) { camState.fov = Number(f); applyCameraToThree(); return { fov: camState.fov }; },
   screenshot: takeScreenshot,

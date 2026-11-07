@@ -7,6 +7,10 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
 import { World } from './world.js';
 import { buildScene } from './mesher.js';
+import { applyBlockEdits } from './chunk-editor.js';
+import { buildShape } from './build-ops.js';
+import { exportWorld, verifyExport } from './save-export.js';
+import { cloneSelection, fillBox, replaceBox, undoRecord } from './structure-ops.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT = path.resolve(__dirname, '..');
@@ -28,6 +32,16 @@ export class RendererError extends Error {
 export function logErr(...args){ process.stderr.write('[mc-render] '+args.map(a=>typeof a==='string'?a:JSON.stringify(a)).join(' ')+'\n'); }
 function statSafe(p){ try{ return fs.statSync(p); }catch{ return null; } }
 
+export function assertEdits(edits){
+  if(!Array.isArray(edits) || edits.length===0) throw new RendererError('INVALID_ARGUMENT','edits must be a non-empty array of {x,y,z,block}');
+  for(const e of edits){
+    if(!e || !Number.isFinite(e.x) || !Number.isFinite(e.y) || !Number.isFinite(e.z) || e.block===undefined || e.block===null || e.block===''){
+      throw new RendererError('INVALID_ARGUMENT','each edit needs finite x,y,z and a non-empty block');
+    }
+  }
+  return edits;
+}
+
 export class RendererService {
   constructor(options={}){
     this.options=options;
@@ -40,6 +54,7 @@ export class RendererService {
     this.pageErrors=[];
     this.lastLoadOptions=null;
     this.busy=false;
+    this.undoStack=[];
   }
 
   get loaded(){ return !!(this.world && this.scene && this.page); }
@@ -256,6 +271,110 @@ export class RendererService {
     if(!s || s==='.' || s==='..') s=`shot-${Date.now()}.png`;
     if(!s.toLowerCase().endsWith('.png')) s+='.png';
     return s;
+  }
+
+  // ---------- world editing / building (chunk-editor + build-ops + structure-ops) ----------
+  _stamp(){ return new Date().toISOString().replace(/[:.]/g,'-'); }
+
+  _resolveOutputPath(p){
+    if(!p) return path.join(RENDERS,'exports');
+    return path.isAbsolute(p) ? p : path.resolve(ROOT,p);
+  }
+
+  async _captureCamera(){
+    try{ return await this.call('getState'); }catch{ return null; }
+  }
+
+  async _restoreCamera(prev){
+    if(!prev || !Array.isArray(prev.position) || !Array.isArray(prev.target)) return;
+    try{
+      await this.call('setCamera',{mode:'free',position:prev.position,target:prev.target,fov:prev.fov});
+      if(prev.shader && prev.shader.preset) await this.call('applyShader',prev.shader.preset,{});
+    }catch(err){ logErr('camera restore failed', err.message); }
+  }
+
+  async _applyEdits(edits,{reload=false,backup=true,recordUndo=true}={}){
+    this._requirePage();
+    assertEdits(edits);
+    const started=Date.now();
+    let reverse=null;
+    if(recordUndo){
+      try{ reverse=undoRecord(edits,this.world); }
+      catch(err){ logErr('undo snapshot failed', err.message); reverse=null; }
+    }
+    const backupDir=backup?path.join(RENDERS,'backups',`world-edit-${this._stamp()}`):null;
+    let stats;
+    try{
+      stats=await applyBlockEdits({worldRoot:this.world.root,dimension:this.world.dimension,edits,backupDir});
+    }catch(err){
+      throw new RendererError(err.code||'WORLD_WRITE_FAILED', err.message||String(err), err.details??null, false);
+    }
+    // drop stale caches so mc_get_block reads the freshly written state from disk
+    for(const rf of this.world.regions.values()){
+      rf.buf=null;
+      if(rf.cache) rf.cache.clear();
+    }
+    this.world.lazy.clear();
+    this.world.loaded.clear();
+    if(recordUndo && reverse && reverse.length){
+      this.undoStack.push({at:Date.now(),edits:reverse,forwardCount:edits.length});
+      while(this.undoStack.length>20) this.undoStack.shift();
+    }
+    const prevCam = reload ? await this._captureCamera() : null;
+    let reloadMs=null;
+    if(reload){
+      const t=Date.now();
+      await this.reloadWorld({});
+      reloadMs=Date.now()-t;
+      await this._restoreCamera(prevCam);
+    }
+    return {
+      ...stats, editMs:Date.now()-started, backupDir,
+      undoDepth:this.undoStack.length, reloaded:!!reload, reloadMs,
+    };
+  }
+
+  async editWorld({edits,reload=false,backup=true}={}){
+    return await this._applyEdits(edits,{reload,backup});
+  }
+
+  async buildEdit({shape,from,to,center,radius,height,block,block2,reload=false,backup=true}={}){
+    const edits=buildShape({shape,from,to,center,radius,height,block,block2});
+    return await this._applyEdits(edits,{reload,backup});
+  }
+
+  async fillEdit({from,to,block,reload=false,backup=true}={}){
+    const edits=fillBox(from,to,block);
+    return await this._applyEdits(edits,{reload,backup});
+  }
+
+  async replaceEdit({from,to,fromBlock,toBlock,reload=false,backup=true}={}){
+    const edits=replaceBox(from,to,{fromBlock,toBlock,world:this.world});
+    return await this._applyEdits(edits,{reload,backup});
+  }
+
+  async cloneEdit({bbox,offset,rotation=0,mirror='none',reload=false,backup=true}={}){
+    const edits=cloneSelection({world:this.world,bbox,offset,options:{rotation,mirror}});
+    return await this._applyEdits(edits,{reload,backup});
+  }
+
+  async undoEdit({reload=false}={}){
+    const rec=this.undoStack.pop();
+    if(!rec) throw new RendererError('NOTHING_TO_UNDO','No edit is available in undo history for this session');
+    const stats=await this._applyEdits(rec.edits,{reload,backup:false,recordUndo:false});
+    return {...stats, undoneEdits:rec.edits.length, undoDepth:this.undoStack.length};
+  }
+
+  async exportSave({outputPath,name,zip=false,overwrite=false,includePlayerData=false}={}){
+    this._requirePage();
+    const outDir=this._resolveOutputPath(outputPath);
+    const safe=String(this.world.levelName||'world').replace(/[<>:"|?*\\/]+/g,'_').slice(0,80);
+    const finalName=(name && String(name).trim()) || `${safe}-${this._stamp()}`;
+    const exp=await exportWorld({worldRoot:this.world.root,outputPath:outDir,name:finalName,zip,overwrite,includePlayerData});
+    let verify=null;
+    try{ verify=await verifyExport({output:exp.output}); }
+    catch(err){ verify={ok:false,error:err.message}; }
+    return {export:exp, verify};
   }
 
   async close(){

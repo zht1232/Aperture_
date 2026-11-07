@@ -4,7 +4,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import { RendererService, RendererError, logErr } from './service.js';
 
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
 const service = new RendererService({ headless: process.env.MCP_BROWSER_HEADLESS !== '0' });
 
 function success(payload, extra = []) {
@@ -36,6 +36,11 @@ function suggestionFor(code) {
     INVALID_ARGUMENT: 'Check the tool schema, coordinate order [x,y,z], and required fields.',
     TIMEOUT: 'Increase the timeout or reduce world radius; the world may be very large.',
     SCREENSHOT_FAILED: 'Retry after the renderer page reports ready.',
+    WORLD_WRITE_FAILED: 'The save could not be written. Check the save folder permissions and that the backup directory is writable.',
+    CHUNK_NOT_FOUND: 'The target chunk does not exist yet. Pick coordinates near existing terrain, or open the area once in Minecraft so the chunk is generated.',
+    NOTHING_TO_UNDO: 'No edit history is available in this server session (restart or history limit reached).',
+    EXPORT_TARGET_EXISTS: 'Choose another output_path/name, or pass overwrite=true.',
+    EXPORT_FAILED: 'Export failed; check the output path is writable and has enough free space.',
   })[code] || 'Inspect details and retry. Logs are written to stderr.';
 }
 function wrap(name, fn) {
@@ -48,10 +53,10 @@ function assert(cond, message, code = 'INVALID_ARGUMENT') { if (!cond) throw new
 function v3(a) { return Array.isArray(a) && a.length === 3 && a.every(Number.isFinite); }
 
 const server = new McpServer({ name: 'minecraft-aperture-renderer', version: VERSION }, {
-  instructions: `Standalone Minecraft Java world renderer (no Minecraft client required).
+  instructions: `Standalone Minecraft Java world renderer + building toolchain (no Minecraft client required).
 Coordinates are Minecraft blocks [x,y,z], Y up. Camera calls use look-at targets and FOV in degrees.
 Start with mc_load_world, then mc_screenshot. Use mc_camera_set / mc_camera_orbit / mc_camera_path, then screenshot again.
-Screenshots are stable PNG files plus JSON metadata containing the camera matrices.`,
+To build: mc_set_block / mc_set_blocks / mc_build / mc_fill / mc_replace / mc_clone write straight into the save's .mca files, mc_undo reverts the last batch, and mc_export_save packs the edited save into a ready-to-use folder or zip. Writes default to no scene rebuild; pass reload:true (or call mc_reload_world) before taking screenshots.`,
 });
 
 server.registerTool('mc_load_world', {
@@ -63,7 +68,7 @@ server.registerTool('mc_load_world', {
     radius: z.number().int().min(3).max(16).optional().describe('Chunk load radius around center (default 7). Larger is heavier.'),
     center: z.array(z.number()).length(3).optional().describe('Chunk center in blocks [x,y,z]. Defaults to world spawn.'),
     camera: z.object({ position: z.array(z.number()).length(3), target: z.array(z.number()).length(3), fov: z.number().min(20).max(120).optional() }).optional(),
-    shader_preset: z.enum(['cinematic','realistic','vanilla','performance','custom']).optional(),
+    shader_preset: z.enum(['cinematic','realistic','vanilla','performance','custom','complementary_reimagined']).optional(),
     time_of_day: z.number().min(0).max(24).optional(),
     width: z.number().int().min(320).max(3840).optional(),
     height: z.number().int().min(200).max(2160).optional(),
@@ -81,7 +86,7 @@ server.registerTool('mc_load_world', {
 server.registerTool('mc_reload_world', {
   title: 'Reload current world',
   description: 'Rebuild the current world from disk (picks up external edits) and restart the renderer.',
-  inputSchema: { radius: z.number().int().min(3).max(16).optional(), shader_preset: z.enum(['cinematic','realistic','vanilla','performance','custom']).optional() },
+  inputSchema: { radius: z.number().int().min(3).max(16).optional(), shader_preset: z.enum(['cinematic','realistic','vanilla','performance','custom','complementary_reimagined']).optional() },
 }, wrap('mc_reload_world', async (args) => success(await service.reloadWorld(args))));
 
 server.registerTool('mc_world_info', {
@@ -117,6 +122,110 @@ server.registerTool('mc_find_blocks', {
   assert(vol <= 2_000_000, `box volume ${vol} exceeds 2,000,000`);
   const blocks = service.world.findBlocks({ block, bbox, limit: limit ?? 100 });
   return success({ count: blocks.length, limit: limit ?? 100, blocks });
+}));
+
+// ---------- building: write into the save's .mca files ----------
+const blockArg = z.string().min(1).describe('Block state id, e.g. minecraft:stone or minecraft:oak_stairs[facing=north]');
+const editArg = z.object({ x:z.number().int(), y:z.number().int(), z:z.number().int(), block:blockArg });
+const vec3i = z.array(z.number().int()).length(3);
+const reloadArg = z.boolean().optional().describe('Rebuild the rendered scene after writing (default false). Takes ~10-15s but screenshots need it.');
+const backupArg = z.boolean().optional().describe('Copy every touched .mca into renders/backups before writing (default true).');
+
+server.registerTool('mc_set_block', {
+  title: 'Write one block into the save',
+  description: 'Set a single block in the Java save on disk. The target chunk must already exist. Writes .mca files in place; pass reload:true before taking screenshots.',
+  inputSchema: { x:z.number().int(), y:z.number().int(), z:z.number().int(), block:blockArg, reload:reloadArg, backup:backupArg },
+}, wrap('mc_set_block', async (args) => {
+  assert(service.loaded, 'No world loaded. Call mc_load_world first.', 'NOT_LOADED');
+  const stats = await service.editWorld({ edits:[{x:args.x,y:args.y,z:args.z,block:args.block}], reload:!!args.reload, backup:args.backup!==false });
+  return success({ message:'1 block written to the save.', ...stats });
+}));
+
+server.registerTool('mc_set_blocks', {
+  title: 'Write a batch of blocks into the save',
+  description: 'Write many block edits to the Java save in one atomic batch. Returns counters; the renderer scene is not rebuilt unless reload:true.',
+  inputSchema: { edits: z.array(editArg).min(1).max(200000), reload:reloadArg, backup:backupArg },
+}, wrap('mc_set_blocks', async (args) => {
+  assert(service.loaded, 'No world loaded. Call mc_load_world first.', 'NOT_LOADED');
+  const stats = await service.editWorld({ edits:args.edits, reload:!!args.reload, backup:args.backup!==false });
+  return success({ message:`${args.edits.length} block edits written to the save.`, ...stats });
+}));
+
+server.registerTool('mc_build', {
+  title: 'Build a shape into the save',
+  description: 'Generate a box / hollow_box / sphere / cylinder / line / platform and write every block into the save in one batch. Coordinates are inclusive Minecraft blocks.',
+  inputSchema: {
+    shape: z.enum(['box','hollow_box','sphere','cylinder','line','platform']),
+    from: vec3i.optional().describe('[x,y,z] first corner or line start'),
+    to: vec3i.optional().describe('[x,y,z] opposite corner or line end'),
+    center: vec3i.optional().describe('[x,y,z] center for sphere/cylinder'),
+    radius: z.number().int().min(1).max(256).optional(),
+    height: z.number().int().min(1).max(384).optional(),
+    block: blockArg,
+    block2: blockArg.optional().describe('Secondary block: hollow interior / shell fill.'),
+    reload: reloadArg, backup: backupArg,
+  },
+}, wrap('mc_build', async (args) => {
+  assert(service.loaded, 'No world loaded. Call mc_load_world first.', 'NOT_LOADED');
+  const stats = await service.buildEdit({ shape:args.shape, from:args.from, to:args.to, center:args.center, radius:args.radius, height:args.height, block:args.block, block2:args.block2, reload:!!args.reload, backup:args.backup!==false });
+  return success({ message:`shape ${args.shape} written to the save.`, ...stats });
+}));
+
+server.registerTool('mc_fill', {
+  title: 'Fill a box with one block',
+  description: 'Fill the inclusive box between from and to with a block, written into the save in one batch.',
+  inputSchema: { from:vec3i, to:vec3i, block:blockArg, reload:reloadArg, backup:backupArg },
+}, wrap('mc_fill', async (args) => {
+  assert(service.loaded, 'No world loaded. Call mc_load_world first.', 'NOT_LOADED');
+  return success(await service.fillEdit({ from:args.from, to:args.to, block:args.block, reload:!!args.reload, backup:args.backup!==false }));
+}));
+
+server.registerTool('mc_replace', {
+  title: 'Replace blocks inside a box',
+  description: 'Scan the inclusive box and replace every from_block occurrence with to_block, written into the save in one batch.',
+  inputSchema: { from:vec3i, to:vec3i, from_block:z.string().min(1), to_block:blockArg, reload:reloadArg, backup:backupArg },
+}, wrap('mc_replace', async (args) => {
+  assert(service.loaded, 'No world loaded. Call mc_load_world first.', 'NOT_LOADED');
+  return success(await service.replaceEdit({ from:args.from, to:args.to, fromBlock:args.from_block, toBlock:args.to_block, reload:!!args.reload, backup:args.backup!==false }));
+}));
+
+server.registerTool('mc_clone', {
+  title: 'Copy a box somewhere else',
+  description: 'Capture every block in bbox and re-write it at origin+offset (rotation around Y and optional mirror). One batch into the save.',
+  inputSchema: {
+    bbox: z.array(z.number().int()).length(6).describe('[minX,minY,minZ,maxX,maxY,maxZ]'),
+    offset: vec3i.describe('target translation [dx,dy,dz]'),
+    rotation: z.union([z.literal(0),z.literal(90),z.literal(180),z.literal(270)]).optional(),
+    mirror: z.enum(['none','x','z']).optional(),
+    reload: reloadArg, backup: backupArg,
+  },
+}, wrap('mc_clone', async (args) => {
+  assert(service.loaded, 'No world loaded. Call mc_load_world first.', 'NOT_LOADED');
+  return success(await service.cloneEdit({ bbox:args.bbox, offset:args.offset, rotation:args.rotation??0, mirror:args.mirror??'none', reload:!!args.reload, backup:args.backup!==false }));
+}));
+
+server.registerTool('mc_undo', {
+  title: 'Undo the last edit batch',
+  description: 'Revert the most recent mc_set_block / mc_set_blocks / mc_build / mc_fill / mc_replace / mc_clone batch (up to 20 batches per session).',
+  inputSchema: { reload: reloadArg },
+}, wrap('mc_undo', async (args) => {
+  assert(service.loaded, 'No world loaded. Call mc_load_world first.', 'NOT_LOADED');
+  return success(await service.undoEdit({ reload:!!args.reload }));
+}));
+
+server.registerTool('mc_export_save', {
+  title: 'Export the edited save',
+  description: 'Copy the current (edited) world into a ready-to-use save folder or zip, then verify it opens. Excludes session.lock, player data and backups by default.',
+  inputSchema: {
+    output_path: z.string().optional().describe('Folder to write into; default renders/exports. Relative paths resolve against the project root.'),
+    name: z.string().optional().describe('Save folder / zip name; defaults to <level name>-<timestamp>.'),
+    zip: z.boolean().optional().describe('Write a .zip instead of a folder (default false).'),
+    overwrite: z.boolean().optional().describe('Replace an existing target (default false).'),
+    include_player_data: z.boolean().optional().describe('Keep players/ playerdata/ stats/ advancements/ (default false).'),
+  },
+}, wrap('mc_export_save', async (args) => {
+  assert(service.loaded, 'No world loaded. Call mc_load_world first.', 'NOT_LOADED');
+  return success(await service.exportSave({ outputPath:args.output_path, name:args.name, zip:!!args.zip, overwrite:!!args.overwrite, includePlayerData:!!args.include_player_data }));
 }));
 
 server.registerTool('mc_camera_set', {
@@ -191,7 +300,7 @@ server.registerTool('mc_shader_preset', {
   title: 'Set shader / lighting preset',
   description: 'Switch the GPU shader preset (cinematic, realistic, vanilla, performance) or override individual effects: exposure, shadows, bloom, rays, fog, timeOfDay, saturation, vignette. The renderer uses built-in GLSL sky, water, shadow, bloom, god-ray and ACES passes (not Iris packs).',
   inputSchema: {
-    preset: z.enum(['cinematic','realistic','vanilla','performance','custom']).optional(),
+    preset: z.enum(['cinematic','realistic','vanilla','performance','custom','complementary_reimagined']).optional(),
     overrides: z.record(z.any()).optional(),
     time_of_day: z.number().min(0).max(24).optional(),
   },

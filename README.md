@@ -202,6 +202,14 @@ MCP server 只把日志写到 **stderr**；stdout 专用于 JSON-RPC，不会被
 | `mc_world_info` | 世界信息、版本、spawn、dimensions、chunk bounds、方块统计 |
 | `mc_get_block` | 按坐标查询方块名称、properties、block/sky light |
 | `mc_find_blocks` | 在 `[minX,minY,minZ,maxX,maxY,maxZ]` 内搜索方块（上限 500 个结果） |
+| `mc_set_block` | 写入单个方块到存档（`.mca` 落盘；`reload:true` 后截图可见） |
+| `mc_set_blocks` | 批量写入方块，一次原子批次 |
+| `mc_build` | 生成 box / hollow_box / sphere / cylinder / line / platform 形状并一次写入 |
+| `mc_fill` | 把闭区间盒填成一种方块 |
+| `mc_replace` | 在盒内把 from_block 全部替换为 to_block |
+| `mc_clone` | 复制一个盒到 origin+offset，支持绕 Y 旋转与镜像 |
+| `mc_undo` | 撤销最近一批写入（每次会话最多 20 批） |
+| `mc_export_save` | 把修改后的存档导出为文件夹或 zip（自动校验能打开） |
 | `mc_camera_set` | 自由相机：`position` + `target` 或 `yaw`/`pitch`，`fov` |
 | `mc_camera_orbit` | 轨道相机：`target`、`distance`、`azimuth`、`elevation`、`auto_rotate`、`speed` |
 | `mc_camera_path` | 路径关键帧、时长、循环、缓动、`seek`、播放 |
@@ -437,11 +445,82 @@ mc-mcp-camera/
 
 **会修改存档吗？**
 
-不会。渲染器只读取 `level.dat` 和 region 文件；没有写入路径。
+渲染与查询默认只读；只有调用 `mc_set_block` / `mc_set_blocks` / `mc_build` / `mc_fill` / `mc_replace` / `mc_clone` / `mc_undo` 才会写入 `.mca`。写入前默认把被改的 region 备份到 `renders/backups/world-edit-<时间戳>/`，每批先在内存完成、再临时文件 + 原子 rename + 读回校验，失败自动回滚。已知限制：SkyLight/BlockLight、heightmaps 不重算（返回的 `warnings` 会写明），编辑点上的 block entity 会被移除。详见第 13、14 节。
 
 ---
 
-## 13. 第三方组件
+## 13. 修改存档与建造（写盘）
+
+这一组工具直接把方块写进 Java 存档的 `.mca`，不启动 Minecraft 客户端。坐标是方块坐标、闭区间；每次调用是一个原子批次。
+
+| 工具 | 要点 |
+|---|---|
+| `mc_set_block` | `{x,y,z,block}`；block 支持 `minecraft:stone`、`minecraft:oak_stairs[facing=north]` 或 `{name,props}` |
+| `mc_set_blocks` | `edits:[{x,y,z,block}]`，最多 200000 条一批 |
+| `mc_build` | `shape` + `from`/`to`（box、hollow_box、line、platform）或 `center`/`radius`/`height`（sphere、cylinder）；`block2` 填内部 |
+| `mc_fill` | `from`..`to` 全填 `block` |
+| `mc_replace` | 盒内把 `from_block` 换成 `to_block`（按 state 名匹配） |
+| `mc_clone` | `bbox` 复制到 `origin+offset`；`rotation` 0/90/180/270、`mirror` none/x/z |
+| `mc_undo` | 撤销上一批（内存里保留最近 20 批） |
+| `mc_export_save` | 见第 14 节 |
+
+工作流（推荐）：
+
+```text
+mc_load_world(path=..., radius=6)          # 先加载，才知道地形与坐标
+mc_get_block(x,y,z)  / mc_find_blocks(...) # 读现状
+mc_build(shape='box', from=[...], to=[...], block='minecraft:stone')   # 写盘（默认不重建画面）
+mc_reload_world(radius=6)                  # 重建场景，约 10–15 s
+mc_camera_set(...) ; mc_screenshot(...)    # 看效果
+mc_undo()                                  # 不满意就回退
+```
+
+要点与限制：
+
+- 写入默认**不重建渲染场景**（快）；要看效果先传 `reload:true` 或另调 `mc_reload_world`。重载会尽量恢复原相机的 position/target/fov 与光影预设。
+- 只改**已存在的区块**；目标区块没生成会返回 `CHUNK_NOT_FOUND`。
+- 每次写入前把被修改的 region 备份到 `renders/backups/world-edit-<时间戳>/`；`backup:false` 可关。
+- 返回里有 `blocksChanged`、`chunksEdited`、`regionsWritten`、`sectionsCreated`、`undoDepth`，以及 `warnings`。
+- **未重算**：`SkyLight` / `BlockLight`、heightmaps。新方块的光照会沿用旧值；新建 section 不带光照数组。
+- 编辑位置上的 block entity（箱子、告示牌等）会被移除，不会自动重建。
+- 不支持 `.mcc` 外部 chunk 与 1.12 及更早的 `Blocks` 数组格式。
+
+## 14. 导出修改后的存档
+
+`mc_export_save` 把当前世界（含已写入的修改）复制成可直接使用的存档：
+
+| 参数 | 说明 |
+|---|---|
+| `output_path` | 写到哪里；默认 `renders/exports`，相对路径按项目根解析 |
+| `name` | 文件夹名或 zip 名；默认 `<世界名>-<时间戳>` |
+| `zip` | `true` 出 `.zip`（自带最小 zip writer，deflate，无新依赖） |
+| `overwrite` | 目标已存在时是否覆盖（默认 false，会报 `EXPORT_TARGET_EXISTS`） |
+| `include_player_data` | 是否保留 `players/`、`playerdata/`、`stats/`、`advancements/`（默认否） |
+
+返回 `{export:{output,format,fileCount,bytes,...}, verify:{ok,level:{name,version,dataVersion,...},world:{...}}}`。`verify` 会重新打开导出的存档（zip 形态则直接解析 zip 内的 `level.dat` 与条目 CRC），确认导出的世界能打开、版本与源一致。
+
+默认排除：`session.lock`、临时文件、`aperture-backups/`、玩家数据；`datapacks/` 默认保留（`includeDatapacks`）。
+
+限制：zip 仅 deflate 且无 zip64（>4 GiB / >65535 文件会报错）；导出是整份世界复制，不做「只导出某块区域并移植 chunk」；GB 级 zip 会全部读进内存，大世界建议用文件夹形态。
+
+---
+
+## 15. Complementary Reimagined 光影预设
+
+`mc_shader_preset({preset:'complementary_reimagined'})`（或 `applyShader('complementary_reimagined', overrides)`）使用一套参照 Complementary Shaders - Reimagined 观感实现的自定义 GLSL 管线。**它不是 Iris 兼容层**，不能加载真实 shaderpack（原因见第 8 节）。
+
+已实现：CS 风格天空（渐变天色 + 平滑 value-noise 云层 + 日月）、水面（菲涅尔 + 波浪法线 + 深浅水色 + 高光带 + 屏幕空间反射近似）、暖高光冷阴影分离调色、SSAO、高度雾 + 距离雾、Bloom（阈值/膝/半径/迭代可调）、体积光、CAS 锐化、ACES / filmic / neutral tone mapping、自动曝光、阴影贴图分辨率可调（1024/2048/4096，PCF）。
+
+可调参数（`setShaderParams` 局部改，`getShaderParams` 读全量，`mc_shader_preset` 的 `overrides` 同款）：
+`exposure`、`contrast`、`saturation`、`temperature`、`splitWarm`、`splitCool`、`sharpen`、`toneMapping`(`aces|filmic|neutral`)、`autoExposure`、`shadows`、`shadowMapResolution`(别名 `shadowSize`)、`ssao`、`ssaoStrength`、`ssaoRadius`、`clouds`、`cloudCoverage`、`cloudDensity`、`cloudSpeed`、`cloudHeight`、`cloudScale`、`sunWarmth`、`skyIntensity`、`atmosphere`、`waterWaves`、`waterWaveHeight`、`waterFresnel`、`waterReflection`、`waterFoam`、`bloom`、`bloomStrength`、`bloomThreshold`、`bloomKnee`、`bloomRadius`、`bloomIterations`、`rays`、`rayStrength`、`fog`、`fogDensity`、`heightFog`、`heightFogFalloff`、`timeOfDay`。完整表见 [`docs/shaders-before-after.md`](docs/shaders-before-after.md)。
+
+与真实 CS 的差距：真 3D 体积云 raymarch、带颜色历史的 SSR、PCSS/彩色阴影、G-buffer 法线 AO、TAA、多级 mip Bloom、AgX tone mapping 均未实现或只是近似。
+
+实测（GTX 1050 Ti，1280×720）：CS 预设实时 RAF 约 32 FPS，`mc_benchmark` glFinish 合成约 1100 FPS；`node tools/test-shader-presets.mjs` 23/23 PASS，四个旧预设输出与改动前逐像素一致（`npm run acceptance` 38/38 PASS）。
+
+---
+
+## 16. 第三方组件
 
 - [Three.js](https://threejs.org/)（MIT）用于 WebGL2 场景
 - [Model Context Protocol TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk)（MIT）
